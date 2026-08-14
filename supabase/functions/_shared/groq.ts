@@ -17,6 +17,16 @@ export class ProviderError extends Error {
   }
 }
 
+function retryAfterSeconds(message: string, header: string | null) {
+  if (header) return header
+  const match = message.match(/try again in\s+([0-9.]+)(ms|s|m)/i)
+  if (!match) return undefined
+  const value = Number.parseFloat(match[1])
+  if (!Number.isFinite(value)) return undefined
+  const seconds = match[2].toLowerCase() === 'ms' ? value / 1_000 : match[2].toLowerCase() === 'm' ? value * 60 : value
+  return String(Math.max(1, Math.ceil(seconds)))
+}
+
 function apiKey() {
   const key = Deno.env.get('GROQ_API_KEY')
   if (!key) throw new HttpError('Groq is not configured. Set the GROQ_API_KEY Supabase secret.', 'AI_NOT_CONFIGURED', 503)
@@ -43,7 +53,7 @@ export async function groqFetch(path: string, init: RequestInit) {
     } catch {
       // HTTP status remains the reliable error signal.
     }
-    throw new ProviderError(message, response.status, response.headers.get('retry-after') ?? undefined)
+    throw new ProviderError(message, response.status, retryAfterSeconds(message, response.headers.get('retry-after')))
   }
   return response
 }

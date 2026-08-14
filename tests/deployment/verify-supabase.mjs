@@ -181,7 +181,7 @@ try {
   if (researchError || typeof research?.report !== 'string' || research.report.length < 200
     || !Array.isArray(research?.results) || research.results.length < 1
     || !research.results.every((result) => typeof result.url === 'string' && result.url.startsWith('http'))
-    || research.toolCount < 1) {
+    || research.toolCount < 2) {
     throw new Error(`Deep Research failed: ${researchError ? await functionErrorMessage(researchError) : 'report or tool-backed sources were incomplete'}`)
   }
 
