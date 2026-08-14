@@ -16,7 +16,7 @@ import { askAi, createArtifact } from '../lib/api'
 import { createId } from '../lib/id'
 import { makeSource } from '../lib/source'
 import type { AccountIdentity } from '../lib/repository'
-import type { AiStatus, AppSettings, Artifact, ArtifactConfig, ArtifactType, ChatMessage, Note, Notebook, Source } from '../types'
+import type { AiStatus, AppSettings, Artifact, ArtifactConfig, ArtifactType, ChatMessage, Citation, Note, Notebook, Source } from '../types'
 import { AccountButton } from './AccountButton'
 import { AddSourceDialog, type ResearchMode } from './AddSourceDialog'
 import { ArtifactConfigDialog } from './ArtifactConfigDialog'
@@ -54,7 +54,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
   const chatOnly = shareAccess === 'chat'
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [addSourceOpen, setAddSourceOpen] = useState(!readOnly && startWithAddSource)
-  const [sourceDetail, setSourceDetail] = useState<Source | null>(null)
+  const [sourceDetail, setSourceDetail] = useState<{ source: Source; citation?: Citation } | null>(null)
   const [chatConfigOpen, setChatConfigOpen] = useState(false)
   const [artifactConfigType, setArtifactConfigType] = useState<ArtifactType | null>(null)
   const [artifactViewer, setArtifactViewer] = useState<Artifact | null>(null)
@@ -89,6 +89,10 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
     setSourceResearchQuery('')
     setSourceResearchMode('fast')
     setAddSourceOpen(true)
+  }
+
+  const openSourceDetail = (source: Source, citation?: Citation) => {
+    setSourceDetail({ source, citation })
   }
 
   const openResearchDialog = (query: string, mode: ResearchMode) => {
@@ -231,7 +235,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
               onResearch={openResearchDialog}
               onToggle={toggleSource}
               onToggleAll={(selected) => update((current) => ({ ...current, sources: current.sources.map((source) => ({ ...source, selected })) }))}
-              onOpen={setSourceDetail}
+              onOpen={(source) => openSourceDetail(source)}
               onDelete={(id) => update((current) => ({ ...current, sources: current.sources.filter((source) => source.id !== id) }))}
               onCollapse={() => setSourcesVisible(false)}
             />
@@ -249,7 +253,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
               onConfigure={() => setChatConfigOpen(true)}
               onClear={() => update((current) => ({ ...current, messages: [] }))}
               onSave={saveMessageToNote}
-              onOpenSource={setSourceDetail}
+              onOpenSource={openSourceDetail}
               onCollapse={() => setChatVisible(false)}
             />
           </div>}
@@ -275,7 +279,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
       </div>
 
       {!readOnly && <AddSourceDialog key={addSourceOpen ? `${sourceResearchMode}-${sourceResearchQuery || 'blank'}` : 'closed'} open={addSourceOpen} language={settings.outputLanguage} initialQuery={sourceResearchQuery} initialResearchMode={sourceResearchMode} onClose={() => { setAddSourceOpen(false); setSourceResearchQuery(''); setSourceResearchMode('fast') }} onAdd={addSources} />}
-      {!chatOnly && <SourceDetailDialog source={sourceDetail} onClose={() => setSourceDetail(null)} onToggle={toggleSource} />}
+      {!chatOnly && <SourceDetailDialog source={sourceDetail?.source ?? null} citation={sourceDetail?.citation} onClose={() => setSourceDetail(null)} onToggle={toggleSource} />}
       {!readOnly && <ChatConfigDialog key={`${chatConfigOpen}-${notebook.chatConfig.style}-${notebook.chatConfig.length}`} open={chatConfigOpen} config={notebook.chatConfig} onClose={() => setChatConfigOpen(false)} onSave={(chatConfig) => update((current) => ({ ...current, chatConfig }))} />}
       {!readOnly && <ArtifactConfigDialog key={artifactConfigType ?? 'artifact-config-closed'} type={artifactConfigType} settings={settings} onClose={() => setArtifactConfigType(null)} onGenerate={generateArtifact} />}
       {!chatOnly && <ArtifactViewer artifact={artifactViewer} sources={notebook.sources} onClose={() => setArtifactViewer(null)} />}

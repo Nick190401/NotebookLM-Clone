@@ -144,6 +144,24 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(screen.getByText('Saved chat response')).toBeInTheDocument()
   })
 
+  it('opens a citation at the exact highlighted evidence in its source', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await createNotebookWithTextSource(user)
+
+    await user.type(screen.getByPlaceholderText(/Ask about your sources/), 'What improves public trust?')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    const citation = await screen.findByRole('button', { name: 'Citation 1' })
+
+    expect(within(citation).getByRole('tooltip')).toHaveTextContent('Reliable ten-minute service improved public trust.')
+    await user.click(citation)
+
+    expect(screen.getByRole('heading', { name: 'Citation evidence' })).toBeInTheDocument()
+    expect(screen.getByText('Highlighted in the source text')).toBeInTheDocument()
+    expect(screen.getByText('Reliable ten-minute service improved public trust.', { selector: 'mark' })).toHaveClass('citation-highlight')
+  })
+
   it('opens the data-preserving account flow from the guest profile button', async () => {
     const user = userEvent.setup()
     render(<App />)
