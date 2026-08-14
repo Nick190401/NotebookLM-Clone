@@ -1,0 +1,13 @@
+node_modules
+dist
+.vite
+.env
+.env.*
+!.env.example
+*.local
+*.log
+coverage
+.postgres-test
+supabase/.temp
+supabase/functions/.env
+supabase/functions/**/node_modules

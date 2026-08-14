@@ -1,0 +1,19 @@
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()
+const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
+
+export const supabaseConfigurationError = !supabaseUrl || !publishableKey
+  ? 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to .env.'
+  : null
+
+export const supabase = supabaseUrl && publishableKey
+  ? createClient(supabaseUrl, publishableKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    })
+  : null
+
+export function requireSupabase() {
+  if (!supabase) throw new Error(supabaseConfigurationError || 'Supabase is unavailable.')
+  return supabase
+}
