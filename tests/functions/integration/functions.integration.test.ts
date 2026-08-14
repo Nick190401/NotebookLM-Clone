@@ -119,6 +119,46 @@ Deno.test('shared chat loads sources only through the token-bound RPC', () => wi
   assert(rpcBody?.requested_notebook_id === 'notebook-a', 'shared notebook id was not forwarded')
 }))
 
+Deno.test('deep research returns only deduplicated sources observed by Groq web tools', () => withFunctionEnvironment(async () => {
+  let compoundRequest: Record<string, unknown> | undefined
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    if (request.url.endsWith('/auth/v1/user')) return Response.json({ id: 'researcher-a' })
+    if (request.url.endsWith('/chat/completions')) {
+      compoundRequest = await request.json()
+      return Response.json({
+        model: 'groq/compound',
+        choices: [{ message: {
+          content: '## Executive summary\nVerified transit evidence, plus a hallucinated link to https://fake.example.',
+          executed_tools: [
+            { search_results: { results: [
+              { title: 'Primary transit study', url: 'https://research.example/study#findings', content: 'The study measured service reliability.', score: 0.94 },
+              { title: 'Primary transit study duplicate', url: 'https://research.example/study', content: 'Duplicate result.', score: 0.81 },
+              { title: 'Transport authority', url: 'https://authority.example/report', content: 'The authority published network performance.', score: 0.89 },
+              { title: 'Unsafe scheme', url: 'ftp://files.example/report', content: 'Not importable.', score: 1 },
+            ] } },
+            { type: 'visit_website' },
+          ],
+        } }],
+      })
+    }
+    throw new Error(`Unexpected request: ${request.url}`)
+  }
+
+  const response = await handleNotebookAiRequest(jsonRequest({
+    action: 'research', query: 'How does service reliability affect public trust?', language: 'English',
+  }))
+  const body = await response.json()
+  assert(response.status === 200, `research returned ${response.status}`)
+  assert(body.report.includes('Executive summary'), 'research report missing')
+  assert(body.results.length === 2, 'tool results were not deduplicated or filtered')
+  assert(body.results[0]?.url === 'https://research.example/study', 'URL fragment was not canonicalized')
+  assert(!JSON.stringify(body.results).includes('fake.example'), 'model-authored URL escaped the tool evidence boundary')
+  assert(body.toolCount === 2, 'research action count missing')
+  const custom = compoundRequest?.compound_custom as { tools?: { enabled_tools?: string[] } } | undefined
+  assert(JSON.stringify(custom?.tools?.enabled_tools) === JSON.stringify(['web_search', 'visit_website']), 'compound tools were not restricted')
+}))
+
 Deno.test('grounded chat refuses source IDs the RLS RPC cannot return', () => withFunctionEnvironment(async () => {
   let groqCalled = false
   globalThis.fetch = async (input, init) => {

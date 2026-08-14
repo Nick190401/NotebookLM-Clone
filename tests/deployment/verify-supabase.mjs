@@ -171,6 +171,20 @@ try {
     throw new Error(`Notebook AI status failed: ${statusError ? await functionErrorMessage(statusError) : 'Groq is not configured'}`)
   }
 
+  const { data: research, error: researchError } = await primary.functions.invoke('notebook-ai', {
+    body: {
+      action: 'research',
+      query: 'What are the current hosted Supabase Edge Functions runtime limits? Prefer official Supabase documentation.',
+      language: 'English',
+    },
+  })
+  if (researchError || typeof research?.report !== 'string' || research.report.length < 200
+    || !Array.isArray(research?.results) || research.results.length < 1
+    || !research.results.every((result) => typeof result.url === 'string' && result.url.startsWith('http'))
+    || research.toolCount < 1) {
+    throw new Error(`Deep Research failed: ${researchError ? await functionErrorMessage(researchError) : 'report or tool-backed sources were incomplete'}`)
+  }
+
   const { data: sharedChat, error: sharedChatError } = await isolated.functions.invoke('notebook-ai', {
     body: {
       action: 'chat', notebookId, sourceIds: [sourceId], shareToken, message: 'What is the deployment verification code?', history: [],
@@ -217,8 +231,8 @@ try {
 
   console.log(JSON.stringify({
     anonymousAuth: 'ok', snapshotRoundTrip: 'ok', settingsRoundTrip: 'ok', rlsIsolation: 'ok',
-    aiSourceRpc: 'ok', publicSharing: 'ok', sharedGroundedChat: 'ok', notebookAiFunction: 'ok', groundedGroqChat: 'ok', sourceImportFunction: 'ok', cleanup: 'ok',
-    groqConfigured: true, primaryModel: status.primaryModel ?? null, responseModel: chat.model ?? null,
+    aiSourceRpc: 'ok', publicSharing: 'ok', sharedGroundedChat: 'ok', notebookAiFunction: 'ok', deepResearch: 'ok', groundedGroqChat: 'ok', sourceImportFunction: 'ok', cleanup: 'ok',
+    groqConfigured: true, primaryModel: status.primaryModel ?? null, researchModel: research.model ?? null, responseModel: chat.model ?? null,
   }, null, 2))
 } finally {
   if (primaryAuthenticated) await clearWorkspace(primary, 'Primary finalizer').catch((error) => console.error(error.message))

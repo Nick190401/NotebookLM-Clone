@@ -15,6 +15,13 @@ export interface DiscoveredSource {
   summary: string
 }
 
+export interface DeepResearchResult {
+  report: string
+  results: DiscoveredSource[]
+  model: string
+  toolCount: number
+}
+
 export class ApiError extends Error {
   constructor(message: string, public readonly code: string, public readonly status: number) {
     super(message)
@@ -75,6 +82,14 @@ export async function importSourceUrl(url: string) {
 export async function discoverSources(query: string, language: 'English' | 'Deutsch') {
   const response = await invoke<{ results: Omit<DiscoveredSource, 'id'>[] }>('notebook-ai', { action: 'discover', query, language })
   return response.results.map((result, index) => ({ ...result, id: `discovery-${index}-${result.url}` }))
+}
+
+export async function runDeepResearch(query: string, language: 'English' | 'Deutsch') {
+  const response = await invoke<Omit<DeepResearchResult, 'results'> & { results: Omit<DiscoveredSource, 'id'>[] }>('notebook-ai', { action: 'research', query, language })
+  return {
+    ...response,
+    results: response.results.map((result, index) => ({ ...result, id: `research-${index}-${result.url}` })),
+  }
 }
 
 export function createSpeech(text: string, voice = 'hannah') {

@@ -17,7 +17,7 @@ interface SourcePanelProps {
   sources: Source[]
   readOnly?: boolean
   onAdd: () => void
-  onResearch: (query: string) => void
+  onResearch: (query: string, mode: 'fast' | 'deep') => void
   onToggle: (id: string) => void
   onToggleAll: (selected: boolean) => void
   onOpen: (source: Source) => void
@@ -37,13 +37,14 @@ export function SourcePanel({
   onCollapse,
 }: SourcePanelProps) {
   const [query, setQuery] = useState('')
+  const [researchMode, setResearchMode] = useState<'fast' | 'deep'>('fast')
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const selectedCount = sources.filter((source) => source.selected).length
   const allSelected = sources.length > 0 && selectedCount === sources.length
 
   const submitResearch = () => {
     if (!query.trim()) return
-    onResearch(query)
+    onResearch(query, researchMode)
     setQuery('')
   }
 
@@ -61,7 +62,7 @@ export function SourcePanel({
           Add sources
         </button>}
 
-        {!readOnly && <button className="deep-research-banner" type="button" onClick={() => onResearch('Current developments and reliable evidence')}>
+        {!readOnly && <button className="deep-research-banner" type="button" onClick={() => onResearch('', 'deep')}>
           <span className="research-spark"><Sparkles size={19} /></span>
           <span><strong>Try Deep Research</strong><small>Build an in-depth report and find new sources</small></span>
           <ArrowRight size={17} />
@@ -79,8 +80,8 @@ export function SourcePanel({
             />
           </div>
           <div className="source-research-footer">
-            <button className="mini-select" type="button">Web <ChevronDown size={14} /></button>
-            <button className="mini-select" type="button"><Sparkles size={14} /> Fast research <ChevronDown size={14} /></button>
+            <span className="mini-select static">Web</span>
+            <button className="mini-select" type="button" onClick={() => setResearchMode((current) => current === 'fast' ? 'deep' : 'fast')} aria-label={`Research mode: ${researchMode === 'fast' ? 'Fast Research' : 'Deep Research'}`}><Sparkles size={14} /> {researchMode === 'fast' ? 'Fast research' : 'Deep research'} <ChevronDown size={14} /></button>
             <button className="round-submit" type="button" onClick={submitResearch} disabled={!query.trim()} aria-label="Research topic">
               <ArrowRight size={19} />
             </button>

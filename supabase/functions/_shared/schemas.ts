@@ -44,6 +44,12 @@ export const discoveryRequestSchema = z.object({
   language: z.enum(['English', 'Deutsch']).default('English'),
 })
 
+export const deepResearchRequestSchema = z.object({
+  action: z.literal('research'),
+  query: z.string().trim().min(3).max(500),
+  language: z.enum(['English', 'Deutsch']).default('English'),
+})
+
 export const speechRequestSchema = z.object({
   action: z.literal('speech'),
   text: z.string().trim().min(1).max(4_000),
@@ -54,6 +60,7 @@ export const notebookAiRequestSchema = z.discriminatedUnion('action', [
   chatRequestSchema,
   artifactRequestSchema,
   discoveryRequestSchema,
+  deepResearchRequestSchema,
   speechRequestSchema,
   z.object({ action: z.literal('status') }),
 ])

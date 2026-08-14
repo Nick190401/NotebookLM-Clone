@@ -60,6 +60,13 @@ const discoveryResultSchema = z.object({
   results: z.array(z.object({ title: z.string(), url: z.string().url(), summary: z.string() })).max(8),
 })
 
+const researchSearchResultSchema = z.object({
+  title: z.string().trim().min(1),
+  url: z.string().url(),
+  content: z.string().default(''),
+  score: z.number().optional(),
+})
+
 async function structuredCall<T>(options: {
   messages: ChatMessage[]
   schemaName: string
@@ -226,6 +233,61 @@ export async function discoverWebSources(query: string, language: 'English' | 'D
     const content = body.choices?.[0]?.message?.content
     if (!content) throw new SyntaxError('Empty discovery response')
     return discoveryResultSchema.parse(parseJson(content)).results
+  } catch (error) {
+    throw toHttpError(error)
+  }
+}
+
+export async function deepResearchWebSources(query: string, language: 'English' | 'Deutsch') {
+  try {
+    const response = await groqFetch('/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Groq-Model-Version': 'latest' },
+      signal: AbortSignal.timeout(120_000),
+      body: JSON.stringify({
+        model: 'groq/compound',
+        temperature: 0.1,
+        max_completion_tokens: 5_000,
+        compound_custom: { tools: { enabled_tools: ['web_search', 'visit_website'] } },
+        messages: [{
+          role: 'user',
+          content: `Conduct a multi-step web investigation about: ${query}\n\nSearch from several angles, visit the strongest primary or authoritative sources, cross-check important claims, and identify uncertainty or disagreement. Write a detailed ${language} research report with an executive summary, key findings, evidence, limitations, and suggested follow-up questions. Use descriptive headings and cite visited pages with inline Markdown links. Do not return JSON.`,
+        }],
+      }),
+    })
+    const body = await response.json() as {
+      model?: string
+      choices?: { message?: { content?: string; executed_tools?: unknown[] } }[]
+    }
+    const message = body.choices?.[0]?.message
+    const report = message?.content?.trim()
+    if (!report) throw new SyntaxError('Empty research report')
+
+    const tools = message?.executed_tools ?? []
+    const rawResults = tools.flatMap((tool) => {
+      const searchResults = (tool as { search_results?: { results?: unknown[] } })?.search_results?.results
+      return Array.isArray(searchResults) ? searchResults : []
+    })
+    const results = new Map<string, z.infer<typeof researchSearchResultSchema>>()
+    for (const rawResult of rawResults) {
+      const parsed = researchSearchResultSchema.safeParse(rawResult)
+      if (!parsed.success) continue
+      const url = new URL(parsed.data.url)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') continue
+      url.hash = ''
+      const canonicalUrl = url.toString()
+      if (!results.has(canonicalUrl)) results.set(canonicalUrl, { ...parsed.data, url: canonicalUrl })
+    }
+    const sources = [...results.values()]
+      .sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+      .slice(0, 12)
+      .map(({ title, url, content }) => ({
+        title,
+        url,
+        summary: content.replace(/\s+/g, ' ').trim().slice(0, 360) || 'Reviewed during the multi-step web investigation.',
+      }))
+    if (!sources.length) throw new HttpError('Deep Research returned no verifiable web sources. Try a more specific question.', 'RESEARCH_NO_SOURCES', 502)
+    return { report, results: sources, model: body.model || 'groq/compound', toolCount: tools.length }
   } catch (error) {
     throw toHttpError(error)
   }
