@@ -11,7 +11,7 @@ const settingsSchema = z.object({
 const citationSchema = z.object({ sourceId: z.string(), label: z.number(), excerpt: z.string() })
 const sourceSchema = z.object({
   id: z.string(), title: z.string(), kind: z.enum(['pdf', 'web', 'youtube', 'text', 'audio', 'image']),
-  origin: z.string(), content: z.string(), summary: z.string(), topics: z.array(z.string()), selected: z.boolean(), createdAt: z.number(),
+  origin: z.string(), content: z.string(), summary: z.string(), topics: z.array(z.string()), label: z.string().max(80).default(''), selected: z.boolean(), createdAt: z.number(),
 })
 const artifactContentSchema = z.object({
   summary: z.string(),

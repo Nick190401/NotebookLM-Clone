@@ -4,11 +4,11 @@ A source-grounded NotebookLM-style interview project built with React, Vite, Sup
 
 ## Product surface
 
-- Notebook library with responsive three-panel notebook workspace
+- Searchable notebook library with recency/title sorting, grid/list views, safe notebook copies, and a responsive three-panel workspace
 - PDF, DOCX, text, website, YouTube transcript, image OCR, and audio imports
-- Source selection, source details, grounded chat, citation hover previews with exact-passage navigation, and chat configuration
+- Searchable source selection with automatic topic labels from five sources onward, collapsible groups, manual label management, source details, grounded chat, citation hover previews with exact-passage navigation, and chat configuration
 - Fast Research plus multi-step Deep Research reports with tool-backed, review-before-import web sources
-- Audio/video overviews, mind maps, reports, flashcards, quizzes, infographics, slides, and data tables
+- Audio/video overviews, mind maps, reports, flashcards, quizzes, infographics, slides, and data tables with inspectable generation prompts and Markdown/CSV exports
 - Notes, saved answers, export, light/dark/system theme, and English/German output
 - Guest workspaces, data-preserving account upgrades, email/password sign-in, password recovery, and local sign-out
 - Revocable public links with full-notebook or chat-only access
@@ -46,11 +46,13 @@ Prerequisites: Node.js 22+, Deno 2+, Supabase CLI, and a Supabase project.
    supabase.exe link --project-ref YOUR_PROJECT_REF
    ```
 
-2. Push the hosted Auth configuration, including anonymous sign-ins, manual email linking, redirect URLs, and the 8-character password minimum:
+2. Push the hosted Auth configuration, including anonymous sign-ins, manual email linking, redirect URLs, the 8-character password minimum, and the branded account/security email templates:
 
    ```powershell
    supabase.exe config push --yes
    ```
+
+   The templates live in `supabase/templates/` and are checked with `npm run verify:emails`. Supabase projects created after June 3, 2026 cannot customize templates on the Free plan while using Supabase's default mail provider. Configure custom SMTP or upgrade the project before pushing this email configuration; do not remove the templates to hide that production requirement.
 
 3. Apply the migration:
 
@@ -104,7 +106,7 @@ tests/
   deployment/     # Hosted Supabase end-to-end verification
 ```
 
-`verify:supabase` creates two anonymous sessions, writes a temporary notebook and settings, proves save/load and cross-user RLS isolation, invokes Deep Research, grounded Groq chat, and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.
+`verify:supabase` creates two anonymous sessions, writes a temporary labeled notebook and settings, proves label/save/load round-trips, full-share and chat-only redaction, and cross-user RLS isolation, invokes Deep Research, grounded Groq chat, Studio artifact generation, and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.
 
 On Windows, `test:database` expects PostgreSQL 18 in `C:\Program Files\PostgreSQL\18\bin`. It starts a disposable native cluster, applies the migration and security smoke tests, then removes the cluster again.
 

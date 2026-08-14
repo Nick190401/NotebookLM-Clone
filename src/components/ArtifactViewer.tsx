@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp, Download, Expand, FileText, LoaderCircle, Pause, Play, RotateCcw, Shuffle, Sparkles, Volume2, X } from 'lucide-react'
 import { artifactDefinitions } from '../data/artifacts'
 import { createSpeech } from '../lib/api'
+import { artifactExportLabel, downloadArtifact } from '../lib/artifact-export'
 import type { Artifact, ArtifactContent, Source } from '../types'
 import { ArtifactIcon } from './ProductIcon'
 import { Modal } from './Modal'
@@ -26,22 +27,12 @@ function sourceLabels(ids: string[], sources: Source[]) {
   return <small className="artifact-source-labels">{ids.map((id) => sourceName(sources, id)).join(' · ')}</small>
 }
 
-function downloadArtifact(artifact: Artifact) {
-  const content = JSON.stringify({ title: artifact.title, type: artifact.type, config: artifact.config, model: artifact.model, content: artifact.content }, null, 2)
-  const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `${artifact.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`
-  anchor.click()
-  URL.revokeObjectURL(url)
-}
-
-function ViewerToolbar({ artifact }: { artifact: Artifact }) {
+function ViewerToolbar({ artifact, sources }: { artifact: Artifact; sources: Source[] }) {
   return (
     <div className="artifact-viewer-toolbar">
       <span>{artifact.config.format || artifact.type} · {artifact.config.language}{artifact.model ? ` · ${artifact.model}` : ''}</span>
       <div>
-        <button className="secondary-button compact" type="button" onClick={() => downloadArtifact(artifact)}><Download size={16} /> Download JSON</button>
+        <button className="secondary-button compact" type="button" onClick={() => downloadArtifact(artifact, sources)}><Download size={16} /> {artifactExportLabel(artifact)}</button>
       </div>
     </div>
   )
@@ -167,5 +158,5 @@ export function ArtifactViewer({ artifact, sources, onClose }: ArtifactViewerPro
       case 'datatable': viewer = <DataTableViewer content={content} sources={sources} />; break
     }
   }
-  return <Modal open onClose={onClose} title={artifact.title} description={`${definition?.label ?? 'Studio output'} · generated from ${selectedSources(sources).length} source${selectedSources(sources).length === 1 ? '' : 's'}`} wide className={`artifact-viewer-modal viewer-${artifact.type}`}><ViewerToolbar artifact={artifact} /><div className="artifact-viewer-content">{viewer}</div></Modal>
+  return <Modal open onClose={onClose} title={artifact.title} description={`${definition?.label ?? 'Studio output'} · generated from ${selectedSources(sources).length} source${selectedSources(sources).length === 1 ? '' : 's'}`} wide className={`artifact-viewer-modal viewer-${artifact.type}`}><ViewerToolbar artifact={artifact} sources={sources} /><div className="artifact-viewer-content">{viewer}</div></Modal>
 }

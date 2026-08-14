@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyAppData } from '../../src/lib/notebook'
@@ -91,7 +91,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'My notebooks' })).toBeInTheDocument()
     expect(mocks.ensureSession).toHaveBeenCalledOnce()
     expect(mocks.loadWorkspace).toHaveBeenCalledOnce()
     await user.click(screen.getByRole('button', { name: 'New notebook' }))
@@ -109,7 +109,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await screen.findByRole('heading', { name: 'My notebooks' })
     await user.click(screen.getByRole('button', { name: 'New notebook' }))
     await user.click(screen.getByRole('button', { name: 'Close dialog' }))
     await user.click(screen.getByRole('button', { name: /Try Deep Research/ }))
@@ -121,7 +121,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
   it('flushes the Supabase snapshot before grounded chat and sends only notebook/source IDs', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await screen.findByRole('heading', { name: 'My notebooks' })
     await createNotebookWithTextSource(user)
 
     const prompt = screen.getByPlaceholderText('Ask about your sources…')
@@ -147,7 +147,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
   it('opens a citation at the exact highlighted evidence in its source', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await screen.findByRole('heading', { name: 'My notebooks' })
     await createNotebookWithTextSource(user)
 
     await user.type(screen.getByPlaceholderText(/Ask about your sources/), 'What improves public trust?')
@@ -166,7 +166,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await screen.findByRole('heading', { name: 'My notebooks' })
     await user.click(screen.getByRole('button', { name: 'Open guest account' }))
 
     expect(screen.getByRole('heading', { name: 'Save this workspace' })).toBeInTheDocument()
@@ -178,7 +178,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await screen.findByRole('heading', { name: 'My notebooks' })
     await user.click(screen.getByRole('button', { name: 'Open guest account' }))
     await user.click(screen.getByRole('tab', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Email address'), 'person@example.com')
@@ -197,7 +197,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
       .mockRejectedValueOnce(new Error('Account workspace unavailable'))
     render(<App />)
 
-    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await screen.findByRole('heading', { name: 'My notebooks' })
     await user.click(screen.getByRole('button', { name: 'Open guest account' }))
     await user.click(screen.getByRole('tab', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Email address'), 'person@example.com')
@@ -206,7 +206,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
 
     expect(await screen.findByRole('heading', { name: 'Supabase setup needed' })).toBeInTheDocument()
     expect(screen.getByText('Account workspace unavailable')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Welcome to NotebookLM' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'My notebooks' })).not.toBeInTheDocument()
   })
 
   it('shows a retryable error when the initial Supabase session cannot be opened', async () => {
@@ -217,7 +217,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(await screen.findByRole('heading', { name: 'Supabase setup needed' })).toBeInTheDocument()
     expect(screen.getByText('Session unavailable')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'My notebooks' })).toBeInTheDocument()
     expect(mocks.ensureSession).toHaveBeenCalledTimes(2)
   })
 
@@ -264,6 +264,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
           content: '',
           summary: '',
           topics: [],
+          label: '',
           selected: true,
           createdAt: 1,
         }],
@@ -300,6 +301,41 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(mocks.saveNotebook).not.toHaveBeenCalled()
   })
 
+  it('creates a private copy of a full shared notebook without private chat or notes', async () => {
+    const shareToken = '33333333-3333-4333-8333-333333333333'
+    window.history.replaceState(null, '', `/#/shared/${shareToken}`)
+    mocks.loadSharedNotebook.mockResolvedValue({
+      access: 'full',
+      notebook: {
+        id: 'shared-copy-source',
+        title: 'Shared research',
+        emoji: '📓',
+        sources: [{ id: 'source-one', title: 'Evidence', kind: 'text', origin: 'Owner', content: 'Grounded evidence.', summary: 'Evidence.', topics: ['grounded'], label: 'Grounded', selected: true, createdAt: 1 }],
+        messages: [{ id: 'private-chat', role: 'user', content: 'Private history', citations: [], createdAt: 1 }],
+        artifacts: [],
+        notes: [{ id: 'private-note', title: 'Private note', body: 'Do not copy', createdAt: 1 }],
+        chatConfig: { style: 'Default', length: 'Default', instructions: '' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    })
+    mocks.loadWorkspace.mockImplementation(async () => ({
+      notebooks: [mocks.saveNotebook.mock.calls.at(-1)?.[0]],
+      settings: createEmptyAppData().settings,
+    }))
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Create a copy' }))
+    await waitFor(() => expect(mocks.saveNotebook).toHaveBeenCalledOnce())
+    const copied = mocks.saveNotebook.mock.calls[0][0]
+    expect(copied.title).toBe('Shared research (copy)')
+    expect(copied.sources[0].id).not.toBe('source-one')
+    expect(copied.messages).toEqual([])
+    expect(copied.notes).toEqual([])
+    expect(window.location.hash).toBe(`#/notebook/${copied.id}`)
+  })
+
   it('renders a full shared notebook as an explorable read-only workspace', async () => {
     const shareToken = '22222222-2222-4222-8222-222222222222'
     window.history.replaceState(null, '', `/#/shared/${shareToken}`)
@@ -317,6 +353,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
           content: 'Reliable service improved public trust.',
           summary: 'A source about service reliability.',
           topics: ['reliability'],
+          label: 'Reliability',
           selected: true,
           createdAt: 1,
         }],
@@ -339,7 +376,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(screen.queryByRole('button', { name: /Settings/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open guest account' })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /^Reliability evidenceTEXT$/i }))
+    await user.click(screen.getByRole('button', { name: 'Open source Reliability evidence' }))
     expect(screen.getByText('Reliable service improved public trust.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close dialog' }))
     await user.click(screen.getByRole('button', { name: /Owner insight/i }))

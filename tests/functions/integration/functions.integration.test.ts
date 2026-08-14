@@ -105,6 +105,42 @@ Deno.test('grounded chat loads sources through the caller-bound RPC', () => with
   assert(calls.some((url) => url.endsWith('/rest/v1/rpc/load_ai_sources')), 'source RPC was not used')
 }))
 
+Deno.test('artifact generation forwards the selected format into the grounded prompt', () => withFunctionEnvironment(async () => {
+  let systemPrompt = ''
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    if (request.url.endsWith('/auth/v1/user')) return Response.json({ id: 'user-a' })
+    if (request.url.endsWith('/rest/v1/rpc/load_ai_sources')) {
+      return Response.json([{
+        id: 'source-a', title: 'Evidence', kind: 'text', origin: 'test',
+        content: 'A root concept connects two grounded findings.', summary: '', topics: [], selected: true,
+        created_at: '2026-08-14T00:00:00.000Z',
+      }])
+    }
+    if (request.url.endsWith('/chat/completions')) {
+      const body = await request.json() as { messages?: { role?: string; content?: string }[] }
+      systemPrompt = body.messages?.find((message) => message.role === 'system')?.content ?? ''
+      return Response.json({ choices: [{ message: { content: JSON.stringify({
+        summary: 'Grounded map', sections: [], cards: [], questions: [], slides: [], columns: [], rows: [], metrics: [], transcript: [], narration: '',
+        nodes: [
+          { id: 'root', label: 'Root', parentId: '', sourceId: 'source-a' },
+          { id: 'one', label: 'Finding one', parentId: 'root', sourceId: 'source-a' },
+          { id: 'two', label: 'Finding two', parentId: 'root', sourceId: 'source-a' },
+        ],
+      }) } }] })
+    }
+    throw new Error(`Unexpected request: ${request.url}`)
+  }
+
+  const response = await handleNotebookAiRequest(jsonRequest({
+    action: 'artifact', notebookId: 'notebook-a', sourceIds: ['source-a'], type: 'mindmap',
+    config: { focus: 'Service dependencies', language: 'English', format: 'Radial map' },
+  }))
+  assert(response.status === 200, `artifact returned ${response.status}`)
+  assert(systemPrompt.includes('Format: Radial map.'), 'Selected artifact format was omitted from the Groq prompt')
+  assert(systemPrompt.includes('Focus: Service dependencies.'), 'Custom artifact focus was omitted from the Groq prompt')
+}))
+
 Deno.test('shared chat loads sources only through the token-bound RPC', () => withFunctionEnvironment(async () => {
   let rpcBody: Record<string, unknown> | undefined
   globalThis.fetch = async (input, init) => {

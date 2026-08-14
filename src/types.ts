@@ -8,6 +8,7 @@ export interface Source {
   content: string
   summary: string
   topics: string[]
+  label: string
   selected: boolean
   createdAt: number
 }

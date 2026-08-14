@@ -58,6 +58,7 @@ try {
       content: sourceContent,
       summary: 'A deterministic deployment fact.',
       topics: ['verification', 'supabase'],
+      label: 'Deployment checks',
       selected: true,
       createdAt: now,
     }],
@@ -82,7 +83,8 @@ try {
 
   const workspace = await requireWorkspace(primary, 'Primary')
   const savedNotebook = workspace.notebooks.find((notebook) => notebook.id === notebookId)
-  if (!savedNotebook || savedNotebook.sources?.[0]?.content !== sourceContent || savedNotebook.notes?.length !== 1) {
+  if (!savedNotebook || savedNotebook.sources?.[0]?.content !== sourceContent
+    || savedNotebook.sources?.[0]?.label !== 'Deployment checks' || savedNotebook.notes?.length !== 1) {
     throw new Error('Save/load round trip returned an incomplete notebook snapshot.')
   }
   if (workspace.settings?.theme !== 'dark') throw new Error('Settings round trip did not preserve the RLS write.')
@@ -127,6 +129,7 @@ try {
   })
   if (fullSharedNotebookError || fullSharedNotebook?.access !== 'full'
     || fullSharedNotebook?.notebook?.sources?.[0]?.content !== sourceContent
+    || fullSharedNotebook?.notebook?.sources?.[0]?.label !== 'Deployment checks'
     || fullSharedNotebook?.notebook?.messages?.length !== 0
     || fullSharedNotebook?.notebook?.notes?.length !== 1) {
     throw new Error(`Full shared snapshot failed its access contract: ${fullSharedNotebookError?.message || 'unexpected shared payload'}`)
@@ -153,6 +156,7 @@ try {
   })
   if (chatSharedNotebookError || chatSharedNotebook?.access !== 'chat'
     || chatSharedNotebook?.notebook?.sources?.[0]?.content !== ''
+    || chatSharedNotebook?.notebook?.sources?.[0]?.label !== ''
     || chatSharedNotebook?.notebook?.notes?.length !== 0
     || chatSharedNotebook?.notebook?.artifacts?.length !== 0) {
     throw new Error(`Chat-only shared snapshot leaked private material: ${chatSharedNotebookError?.message || 'unexpected shared payload'}`)
@@ -217,6 +221,18 @@ try {
     throw new Error(`Grounded Groq chat failed: ${chatError ? await functionErrorMessage(chatError) : 'answer or citation was not grounded'}`)
   }
 
+  const { data: studioArtifact, error: studioArtifactError } = await primary.functions.invoke('notebook-ai', {
+    body: {
+      action: 'artifact', notebookId, sourceIds: [sourceId], type: 'report',
+      config: { focus: 'The verification code and approval date', language: 'English', format: 'Briefing document' },
+    },
+  })
+  if (studioArtifactError || !studioArtifact?.content?.summary
+    || !Array.isArray(studioArtifact.content.sections) || studioArtifact.content.sections.length < 2
+    || !studioArtifact.content.sections.every((section) => section.sourceIds?.every((id) => id === sourceId))) {
+    throw new Error(`Studio artifact generation failed: ${studioArtifactError ? await functionErrorMessage(studioArtifactError) : 'report content was incomplete or ungrounded'}`)
+  }
+
   const form = new FormData()
   form.set('file', new File(['Non-persistent deployment verification source.'], 'verification.txt', { type: 'text/plain' }))
   const { data: imported, error: importError } = await primary.functions.invoke('source-import', { body: form })
@@ -230,9 +246,9 @@ try {
   if (clearedWorkspace.notebooks.length !== 0) throw new Error('Workspace cleanup did not remove the verification notebook.')
 
   console.log(JSON.stringify({
-    anonymousAuth: 'ok', snapshotRoundTrip: 'ok', settingsRoundTrip: 'ok', rlsIsolation: 'ok',
-    aiSourceRpc: 'ok', publicSharing: 'ok', sharedGroundedChat: 'ok', notebookAiFunction: 'ok', deepResearch: 'ok', groundedGroqChat: 'ok', sourceImportFunction: 'ok', cleanup: 'ok',
-    groqConfigured: true, primaryModel: status.primaryModel ?? null, researchModel: research.model ?? null, responseModel: chat.model ?? null,
+    anonymousAuth: 'ok', snapshotRoundTrip: 'ok', sourceLabels: 'ok', settingsRoundTrip: 'ok', rlsIsolation: 'ok',
+    aiSourceRpc: 'ok', publicSharing: 'ok', sharedGroundedChat: 'ok', notebookAiFunction: 'ok', deepResearch: 'ok', groundedGroqChat: 'ok', studioArtifact: 'ok', sourceImportFunction: 'ok', cleanup: 'ok',
+    groqConfigured: true, primaryModel: status.primaryModel ?? null, researchModel: research.model ?? null, responseModel: chat.model ?? null, artifactModel: studioArtifact.model ?? null,
   }, null, 2))
 } finally {
   if (primaryAuthenticated) await clearWorkspace(primary, 'Primary finalizer').catch((error) => console.error(error.message))

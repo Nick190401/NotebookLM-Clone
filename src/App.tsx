@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Cloud, LoaderCircle, RefreshCw } from 'lucide-react'
 import { getAiStatus } from './lib/api'
-import { createBlankNotebook, createEmptyAppData } from './lib/notebook'
+import { copyNotebook, createBlankNotebook, createEmptyAppData } from './lib/notebook'
 import { repository, type AccountIdentity } from './lib/repository'
 import type { AiStatus, AppData, AppSettings, Notebook } from './types'
 import { AuthDialog } from './components/AuthDialog'
@@ -150,6 +150,27 @@ export default function App() {
     openNotebook(notebook.id)
   }
 
+  const duplicateNotebook = (id: string) => {
+    const source = dataRef.current.notebooks.find((notebook) => notebook.id === id)
+    if (!source) return
+    const notebook = copyNotebook(source)
+    replaceData({ ...dataRef.current, notebooks: [notebook, ...dataRef.current.notebooks] })
+    void repository.saveNotebook(notebook).then(() => setSyncError('')).catch(recordPersistenceError)
+    openNotebook(notebook.id)
+  }
+
+  const copySharedNotebook = async () => {
+    if (!activeNotebook || sharedAccess !== 'full') return
+    const notebook = copyNotebook(activeNotebook)
+    await repository.saveNotebook(notebook)
+    const workspace = await repository.loadWorkspace()
+    replaceData(workspace)
+    setSharedToken(null)
+    setSharedAccess(null)
+    setNewNotebookId(null)
+    openNotebook(notebook.id)
+  }
+
   const updateNotebook = (id: string, recipe: (notebook: Notebook) => Notebook) => {
     const current = dataRef.current.notebooks.find((notebook) => notebook.id === id)
     if (!current) return null
@@ -277,6 +298,7 @@ export default function App() {
           onOpenSettings={() => setSettingsOpen(true)}
           account={account}
           onOpenAccount={() => setAccountOpen(true)}
+          onCopy={sharedAccess === 'full' ? copySharedNotebook : undefined}
         />
       ) : (
         <HomeScreen
@@ -284,6 +306,7 @@ export default function App() {
           onCreate={createNotebook}
           onOpen={openNotebook}
           onDelete={(id) => { void deleteNotebook(id) }}
+          onDuplicate={duplicateNotebook}
           onOpenSettings={() => setSettingsOpen(true)}
           account={account}
           onOpenAccount={() => setAccountOpen(true)}

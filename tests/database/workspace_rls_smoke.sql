@@ -21,7 +21,7 @@ begin
 
   perform public.save_notebook_snapshot('{
     "id":"notebook-a","title":"RLS notebook","emoji":"📓",
-    "sources":[{"id":"source-a","title":"Evidence","kind":"text","origin":"test","content":"Grounded evidence.","summary":"","topics":[],"selected":true,"createdAt":1700000000000}],
+    "sources":[{"id":"source-a","title":"Evidence","kind":"text","origin":"test","content":"Grounded evidence.","summary":"","topics":[],"label":"Mobility","selected":true,"createdAt":1700000000000}],
     "messages":[{"id":"message-a","role":"user","content":"Question","citations":[],"createdAt":1700000000001}],
     "artifacts":[],
     "notes":[{"id":"note-a","title":"Note","body":"Body","createdAt":1700000000002}],
@@ -32,7 +32,7 @@ begin
   -- Later UI snapshots omit unchanged source bodies to keep requests small.
   perform public.save_notebook_snapshot('{
     "id":"notebook-a","title":"RLS notebook updated","emoji":"📓",
-    "sources":[{"id":"source-a","title":"Evidence","kind":"text","origin":"test","summary":"","topics":[],"selected":true,"createdAt":1700000000000}],
+    "sources":[{"id":"source-a","title":"Evidence","kind":"text","origin":"test","summary":"","topics":[],"label":"Transport","selected":true,"createdAt":1700000000000}],
     "messages":[{"id":"message-a","role":"user","content":"Question","citations":[],"createdAt":1700000000001}],
     "artifacts":[],
     "notes":[{"id":"note-a","title":"Note","body":"Body","createdAt":1700000000002}],
@@ -42,6 +42,9 @@ begin
 
   if (select content from public.sources where id = 'source-a') <> 'Grounded evidence.' then
     raise exception 'Compact snapshot lost unchanged source content';
+  end if;
+  if (select label from public.sources where id = 'source-a') <> 'Transport' then
+    raise exception 'Snapshot did not persist the source label';
   end if;
 
   if jsonb_array_length(public.load_ai_sources('notebook-a', array['source-a'])) <> 1 then
@@ -57,6 +60,7 @@ begin
   workspace := public.load_workspace();
   if jsonb_array_length(workspace -> 'notebooks') <> 1
     or jsonb_array_length(workspace #> '{notebooks,0,sources}') <> 1
+    or workspace #>> '{notebooks,0,sources,0,label}' <> 'Transport'
     or jsonb_array_length(workspace #> '{notebooks,0,messages}') <> 1
     or jsonb_array_length(workspace #> '{notebooks,0,notes}') <> 1 then
     raise exception 'Snapshot round-trip failed';
@@ -87,6 +91,7 @@ begin
   if shared_workspace ->> 'access' <> 'full'
     or shared_workspace #>> '{notebook,title}' <> 'RLS notebook updated'
     or shared_workspace #>> '{notebook,sources,0,content}' <> 'Grounded evidence.'
+    or shared_workspace #>> '{notebook,sources,0,label}' <> 'Transport'
     or jsonb_array_length(shared_workspace #> '{notebook,messages}') <> 0
     or jsonb_array_length(shared_workspace #> '{notebook,notes}') <> 1 then
     raise exception 'Token-bound full sharing returned an invalid snapshot';
@@ -120,6 +125,7 @@ begin
   shared_workspace := public.load_shared_notebook(share_token);
   if shared_workspace ->> 'access' <> 'chat'
     or shared_workspace #>> '{notebook,sources,0,content}' <> ''
+    or shared_workspace #>> '{notebook,sources,0,label}' <> ''
     or shared_workspace #>> '{notebook,sources,0,selected}' <> 'true'
     or jsonb_array_length(shared_workspace #> '{notebook,artifacts}') <> 0
     or jsonb_array_length(shared_workspace #> '{notebook,notes}') <> 0 then

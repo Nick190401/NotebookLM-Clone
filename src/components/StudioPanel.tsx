@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   FilePlus2,
+  MessageSquareQuote,
   MoreVertical,
   PanelRightClose,
   PenLine,
@@ -21,6 +22,7 @@ interface StudioPanelProps {
   onGenerate: (type: ArtifactType, config: ArtifactConfig) => void
   onCustomize: (type: ArtifactType) => void
   onOpenArtifact: (artifact: Artifact) => void
+  onViewPrompt: (artifact: Artifact) => void
   onDeleteArtifact: (id: string) => void
   onAddNote: () => void
   onOpenNote: (note: Note) => void
@@ -38,6 +40,7 @@ export function StudioPanel({
   onGenerate,
   onCustomize,
   onOpenArtifact,
+  onViewPrompt,
   onDeleteArtifact,
   onAddNote,
   onOpenNote,
@@ -95,6 +98,7 @@ export function StudioPanel({
                     {!readOnly && <button className="icon-button" type="button" onClick={() => setMenuFor(menuFor === artifact.id ? null : artifact.id)} aria-label={`More options for ${artifact.title}`}><MoreVertical size={16} /></button>}
                     {!readOnly && menuFor === artifact.id && (
                       <div className="context-menu studio-context-menu">
+                        <button type="button" onClick={() => { onViewPrompt(artifact); setMenuFor(null) }}><MessageSquareQuote size={15} /> View custom prompt</button>
                         <button className="danger-menu-item" type="button" onClick={() => { onDeleteArtifact(artifact.id); setMenuFor(null) }}><Trash2 size={15} /> Delete output</button>
                       </div>
                     )}

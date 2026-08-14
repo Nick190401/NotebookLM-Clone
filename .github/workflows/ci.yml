@@ -37,6 +37,9 @@ jobs:
       - name: Test frontend
         run: npm test
 
+      - name: Verify Supabase auth email templates
+        run: npm run verify:emails
+
       - name: Test Edge Functions
         run: npm run test:functions
 

@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  Copy,
   Globe2,
   Menu,
   PanelLeftOpen,
@@ -14,12 +15,13 @@ import {
 import { artifactTitle } from '../data/artifacts'
 import { askAi, createArtifact } from '../lib/api'
 import { createId } from '../lib/id'
-import { makeSource } from '../lib/source'
+import { makeSource, organizeSources, SOURCE_LABEL_THRESHOLD } from '../lib/source'
 import type { AccountIdentity } from '../lib/repository'
 import type { AiStatus, AppSettings, Artifact, ArtifactConfig, ArtifactType, ChatMessage, Citation, Note, Notebook, Source } from '../types'
 import { AccountButton } from './AccountButton'
 import { AddSourceDialog, type ResearchMode } from './AddSourceDialog'
 import { ArtifactConfigDialog } from './ArtifactConfigDialog'
+import { ArtifactPromptDialog } from './ArtifactPromptDialog'
 import { ArtifactViewer } from './ArtifactViewer'
 import { Brand } from './Brand'
 import { ChatConfigDialog } from './ChatConfigDialog'
@@ -45,11 +47,12 @@ interface WorkspaceProps {
   onOpenSettings: () => void
   account: AccountIdentity
   onOpenAccount: () => void
+  onCopy?: () => Promise<void>
 }
 
 const emojiOptions = ['📓', '🚋', '🧠', '🔬', '📚', '🌍', '🎓', '💡']
 
-export function Workspace({ notebook, settings, startWithAddSource, aiStatus, shareAccess, shareToken, onBack, onUpdate, onFlush, onOpenSettings, account, onOpenAccount }: WorkspaceProps) {
+export function Workspace({ notebook, settings, startWithAddSource, aiStatus, shareAccess, shareToken, onBack, onUpdate, onFlush, onOpenSettings, account, onOpenAccount, onCopy }: WorkspaceProps) {
   const readOnly = Boolean(shareAccess)
   const chatOnly = shareAccess === 'chat'
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
@@ -58,6 +61,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
   const [chatConfigOpen, setChatConfigOpen] = useState(false)
   const [artifactConfigType, setArtifactConfigType] = useState<ArtifactType | null>(null)
   const [artifactViewer, setArtifactViewer] = useState<Artifact | null>(null)
+  const [promptArtifact, setPromptArtifact] = useState<Artifact | null>(null)
   const [noteEditorOpen, setNoteEditorOpen] = useState(false)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [chatBusy, setChatBusy] = useState(false)
@@ -70,6 +74,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
   const [sourceResearchQuery, setSourceResearchQuery] = useState('')
   const [sourceResearchMode, setSourceResearchMode] = useState<ResearchMode>('fast')
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [copying, setCopying] = useState(false)
 
   const update = (recipe: (current: Notebook) => Notebook) => {
     return onUpdate((current) => readOnly ? recipe(current) : { ...recipe(current), updatedAt: Date.now() })
@@ -81,7 +86,12 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
   }
 
   const addSources = (sources: Source[]) => {
-    update((current) => ({ ...current, sources: [...current.sources, ...sources] }))
+    update((current) => {
+      const nextCount = current.sources.length + sources.length
+      if (nextCount < SOURCE_LABEL_THRESHOLD) return { ...current, sources: [...current.sources, ...sources] }
+      const existing = current.sources.length < SOURCE_LABEL_THRESHOLD ? organizeSources(current.sources) : current.sources
+      return { ...current, sources: [...existing, ...organizeSources(sources)] }
+    })
     showToast(`${sources.length} source${sources.length === 1 ? '' : 's'} added`)
   }
 
@@ -102,6 +112,26 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
   }
 
   const toggleSource = (id: string) => update((current) => ({ ...current, sources: current.sources.map((source) => source.id === id ? { ...source, selected: !source.selected } : source) }))
+
+  const organizeSourceLabels = () => {
+    update((current) => ({ ...current, sources: organizeSources(current.sources) }))
+    showToast('Sources organized by topic')
+  }
+
+  const setSourceLabel = (id: string, label: string) => {
+    update((current) => ({ ...current, sources: current.sources.map((source) => source.id === id ? { ...source, label } : source) }))
+    showToast(label ? `Moved to ${label}` : 'Label removed')
+  }
+
+  const renameSourceLabel = (currentLabel: string, nextLabel: string) => {
+    update((current) => ({ ...current, sources: current.sources.map((source) => source.label === currentLabel ? { ...source, label: nextLabel } : source) }))
+    showToast(`Label renamed to ${nextLabel}`)
+  }
+
+  const deleteSourceLabel = (label: string) => {
+    update((current) => ({ ...current, sources: current.sources.map((source) => source.label === label ? { ...source, label: '' } : source) }))
+    showToast(`Label ${label} removed`)
+  }
 
   const sendMessage = async (content: string) => {
     const selectedSources = notebook.sources.filter((source) => source.selected)
@@ -204,7 +234,10 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
         </div>
         <div className="workspace-actions">
           {readOnly ? (
-            <span className="shared-access-chip"><Globe2 size={15} /><span><strong>Shared notebook</strong><small>{chatOnly ? 'Chat only' : 'Full view'}</small></span></span>
+            <>
+              {onCopy && <button className="outline-button copy-notebook-button" type="button" disabled={copying} onClick={() => { setCopying(true); void onCopy().catch((caught) => showToast(caught instanceof Error ? caught.message : 'The notebook could not be copied.')).finally(() => setCopying(false)) }}><Copy size={16} /><span>{copying ? 'Copying…' : 'Create a copy'}</span></button>}
+              <span className="shared-access-chip"><Globe2 size={15} /><span><strong>Shared notebook</strong><small>{chatOnly ? 'Chat only' : 'Full view'}</small></span></span>
+            </>
           ) : (
             <>
               <button className="outline-button share-trigger-button" type="button" onClick={() => setShareDialogOpen(true)}><Share2 size={16} /><span>Share</span></button>
@@ -237,6 +270,10 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
               onToggleAll={(selected) => update((current) => ({ ...current, sources: current.sources.map((source) => ({ ...source, selected })) }))}
               onOpen={(source) => openSourceDetail(source)}
               onDelete={(id) => update((current) => ({ ...current, sources: current.sources.filter((source) => source.id !== id) }))}
+              onOrganize={organizeSourceLabels}
+              onSetLabel={setSourceLabel}
+              onRenameLabel={renameSourceLabel}
+              onDeleteLabel={deleteSourceLabel}
               onCollapse={() => setSourcesVisible(false)}
             />
           </div>}
@@ -267,6 +304,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
               onGenerate={generateArtifact}
               onCustomize={(type) => notebook.sources.length ? setArtifactConfigType(type) : openSourceDialog()}
               onOpenArtifact={setArtifactViewer}
+              onViewPrompt={setPromptArtifact}
               onDeleteArtifact={(id) => update((current) => ({ ...current, artifacts: current.artifacts.filter((artifact) => artifact.id !== id) }))}
               onAddNote={() => openNote(null)}
               onOpenNote={openNote}
@@ -283,6 +321,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
       {!readOnly && <ChatConfigDialog key={`${chatConfigOpen}-${notebook.chatConfig.style}-${notebook.chatConfig.length}`} open={chatConfigOpen} config={notebook.chatConfig} onClose={() => setChatConfigOpen(false)} onSave={(chatConfig) => update((current) => ({ ...current, chatConfig }))} />}
       {!readOnly && <ArtifactConfigDialog key={artifactConfigType ?? 'artifact-config-closed'} type={artifactConfigType} settings={settings} onClose={() => setArtifactConfigType(null)} onGenerate={generateArtifact} />}
       {!chatOnly && <ArtifactViewer artifact={artifactViewer} sources={notebook.sources} onClose={() => setArtifactViewer(null)} />}
+      {!readOnly && <ArtifactPromptDialog artifact={promptArtifact} onClose={() => setPromptArtifact(null)} />}
       {!chatOnly && <NoteEditorDialog
         key={`${noteEditorOpen}-${activeNote?.id ?? 'new'}`}
         open={noteEditorOpen}

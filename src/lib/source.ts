@@ -8,6 +8,28 @@ const COMMON_WORDS = new Set([
   'will', 'with', 'would', 'your',
 ])
 
+export const SOURCE_LABEL_THRESHOLD = 5
+
+export function normalizeSourceLabel(value: string) {
+  return value.trim().replace(/\s+/g, ' ').slice(0, 80)
+}
+
+export function suggestedSourceLabel(source: Pick<Source, 'topics'>) {
+  const topic = normalizeSourceLabel(source.topics[0] ?? '')
+  if (!topic) return 'Other'
+  return topic
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((word) => `${word[0].toUpperCase()}${word.slice(1)}`)
+    .join(' ')
+}
+
+export function organizeSources(sources: Source[]) {
+  return sources.map((source) => source.label
+    ? source
+    : { ...source, label: suggestedSourceLabel(source) })
+}
+
 export function inferTopics(content: string) {
   const counts = new Map<string, number>()
   content
@@ -43,6 +65,7 @@ export function makeSource(input: {
     content: input.content.trim(),
     summary: summarizeContent(input.content),
     topics: inferTopics(input.content),
+    label: '',
     selected: true,
     createdAt: Date.now(),
   }
