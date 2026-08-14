@@ -1051,6 +1051,7 @@ select {
 .message-content br + span { display: inline-block; min-height: 1px; }
 
 .citation-chip {
+  position: relative;
   display: inline-grid;
   min-width: 22px;
   height: 22px;
@@ -1067,6 +1068,34 @@ select {
 }
 
 .citation-chip:hover { color: white; background: var(--blue-strong); }
+.citation-chip:focus-visible { outline: 2px solid var(--blue-strong); outline-offset: 2px; }
+.citation-preview {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  display: grid;
+  visibility: hidden;
+  width: min(290px, calc(100vw - 48px));
+  padding: 12px 13px;
+  gap: 5px;
+  color: var(--text);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  box-shadow: 0 14px 34px rgba(24, 29, 52, .18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+}
+.citation-preview::after { position: absolute; top: 100%; left: 50%; width: 9px; height: 9px; content: ''; background: var(--surface); border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); transform: translate(-50%, -5px) rotate(45deg); }
+.citation-preview strong { color: var(--blue-strong); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; }
+.citation-preview > span { font-family: Georgia, serif; font-size: 12px; font-weight: 400; line-height: 1.5; }
+.citation-preview small { color: var(--text-muted); font-size: 9px; font-weight: 600; }
+.citation-chip:hover .citation-preview,
+.citation-chip:focus-visible .citation-preview { visibility: visible; opacity: 1; transform: translate(-50%, 0); }
 .citation-chip.static { cursor: help; }
 .citation-chip.static:hover { color: var(--blue-strong); background: var(--blue-soft); }
 .message-actions { display: flex; margin-top: 8px; gap: 2px; opacity: .72; }
@@ -1524,13 +1553,21 @@ label > span,
 .guide-card { margin-bottom: 11px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .guide-card > span { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .guide-card p { margin: 10px 0 0; font-size: 12px; line-height: 1.55; }
+.citation-evidence-card { border-left: 3px solid var(--blue-strong); }
+.citation-evidence-card > span { color: var(--blue-strong); }
+.citation-evidence-card blockquote { margin: 11px 0 8px; font-family: Georgia, serif; font-size: 13px; line-height: 1.55; }
+.citation-evidence-card small { color: var(--text-muted); font-size: 10px; }
 .summary-card > span { color: var(--blue-strong); }
 .topic-list { display: flex; margin-top: 10px; gap: 5px; flex-wrap: wrap; }
 .topic-list .chip { min-height: 29px; }
 .source-origin-link { display: flex; min-height: 40px; padding: 0 8px; align-items: center; justify-content: space-between; color: var(--blue-strong); font-size: 11px; font-weight: 600; text-decoration: none; }
 .source-content-view { max-height: 500px; padding: 25px 30px; overflow-y: auto; }
 .source-content-heading { display: flex; margin-bottom: 18px; align-items: center; gap: 7px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+.source-content-heading small { margin-left: auto; padding: 4px 7px; font-size: 9px; font-weight: 700; letter-spacing: .03em; background: var(--surface-soft); border-radius: 999px; }
+.source-content-heading small.located { color: var(--blue-strong); background: var(--blue-soft); }
+.source-content-heading small.unmatched { color: var(--text-muted); }
 .source-content-view p { margin: 0 0 17px; font-family: Georgia, serif; font-size: 15px; line-height: 1.75; }
+.citation-highlight { padding: 2px 1px; color: inherit; background: color-mix(in srgb, var(--blue) 20%, transparent); border-bottom: 2px solid var(--blue-strong); border-radius: 2px; scroll-margin: 110px 0; }
 
 .config-section { padding: 18px 24px 0; }
 .config-section h3,
@@ -1842,6 +1879,7 @@ label > span,
   .source-guide-grid { grid-template-columns: 1fr; }
   .source-guide-sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
   .source-content-view { max-height: 350px; }
+  .citation-preview { display: none; }
   .artifact-viewer-modal { height: 92vh; }
   .artifact-viewer-content { min-height: 0; }
   .audio-viewer { padding: 22px; grid-template-columns: 1fr; gap: 20px; }

@@ -28,7 +28,7 @@ interface ChatPanelProps {
   onConfigure: () => void
   onClear: () => void
   onSave: (messageId: string) => void
-  onOpenSource: (source: Source) => void
+  onOpenSource: (source: Source, citation?: Citation) => void
   onCollapse: () => void
 }
 
@@ -38,7 +38,7 @@ const suggestions = [
   'What are the practical risks?',
 ]
 
-function renderMessage(content: string, citations: Citation[], onCitation: (citation: Citation) => void, canOpenSources: boolean) {
+function renderMessage(content: string, citations: Citation[], onCitation: (citation: Citation) => void, canOpenSources: boolean, messageId: string) {
   const pieces = content.split(/(\[\d+\])/g)
   const output: ReactNode[] = []
   pieces.forEach((piece, index) => {
@@ -46,15 +46,22 @@ function renderMessage(content: string, citations: Citation[], onCitation: (cita
     if (match) {
       const citation = citations.find((item) => item.label === Number(match[1]))
       if (citation) {
+        const previewId = `citation-preview-${messageId}-${citation.label}-${index}`
         output.push(canOpenSources ? (
           <button
             className="citation-chip"
             type="button"
             key={`citation-${index}`}
-            title={citation.excerpt}
+            aria-label={`Citation ${citation.label}`}
+            aria-describedby={previewId}
             onClick={() => onCitation(citation)}
           >
-            {citation.label}
+            <span aria-hidden="true">{citation.label}</span>
+            <span id={previewId} className="citation-preview" role="tooltip">
+              <strong>Source evidence</strong>
+              <span>{citation.excerpt}</span>
+              <small>Select to view in context</small>
+            </span>
           </button>
         ) : <span className="citation-chip static" key={`citation-${index}`} title={citation.excerpt}>{citation.label}</span>)
       }
@@ -102,7 +109,7 @@ export function ChatPanel({
 
   const openCitation = (citation: Citation) => {
     const source = sources.find((item) => item.id === citation.sourceId)
-    if (source) onOpenSource(source)
+    if (source) onOpenSource(source, citation)
   }
 
   return (
@@ -155,7 +162,7 @@ export function ChatPanel({
                 {message.role === 'assistant' && <span className="assistant-avatar"><Sparkles size={15} /></span>}
                 <div className="message-content-wrap">
                   <div className="message-content">
-                    {renderMessage(message.content, message.citations, openCitation, canOpenSources)}
+                    {renderMessage(message.content, message.citations, openCitation, canOpenSources, message.id)}
                   </div>
                   {message.role === 'assistant' && (
                     <div className="message-actions">

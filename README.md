@@ -6,7 +6,7 @@ A source-grounded NotebookLM-style interview project built with React, Vite, Sup
 
 - Notebook library with responsive three-panel notebook workspace
 - PDF, DOCX, text, website, YouTube transcript, image OCR, and audio imports
-- Source selection, source details, grounded chat, exact-excerpt citations, and chat configuration
+- Source selection, source details, grounded chat, citation hover previews with exact-passage navigation, and chat configuration
 - Fast Research plus multi-step Deep Research reports with tool-backed, review-before-import web sources
 - Audio/video overviews, mind maps, reports, flashcards, quizzes, infographics, slides, and data tables
 - Notes, saved answers, export, light/dark/system theme, and English/German output
