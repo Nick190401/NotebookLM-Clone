@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Cloud, LoaderCircle, RefreshCw } from 'lucide-react'
 import { getAiStatus } from './lib/api'
 import { createBlankNotebook, createEmptyAppData } from './lib/notebook'
-import { repository } from './lib/repository'
+import { repository, type AccountIdentity } from './lib/repository'
 import type { AiStatus, AppData, AppSettings, Notebook } from './types'
+import { AuthDialog } from './components/AuthDialog'
 import { HomeScreen } from './components/HomeScreen'
 import { SettingsDialog } from './components/SettingsDialog'
 import { Workspace } from './components/Workspace'
@@ -13,9 +14,27 @@ function notebookIdFromHash() {
   return match?.[1] ?? null
 }
 
+type AccountPrompt = 'confirmed' | 'recovery' | null
+
+function accountPromptFromLocation(): AccountPrompt {
+  const value = new URLSearchParams(window.location.search).get('account')
+  return value === 'confirmed' || value === 'recovery' ? value : null
+}
+
+function accountRedirect(action: Exclude<AccountPrompt, null>) {
+  const url = new URL(window.location.href)
+  url.search = ''
+  url.hash = ''
+  url.searchParams.set('account', action)
+  return url.toString()
+}
+
 export default function App() {
   const [data, setData] = useState<AppData>(() => createEmptyAppData())
   const dataRef = useRef(data)
+  const [account, setAccount] = useState<AccountIdentity | null>(null)
+  const [accountPrompt, setAccountPrompt] = useState<AccountPrompt>(() => accountPromptFromLocation())
+  const [accountOpen, setAccountOpen] = useState(() => accountPromptFromLocation() !== null)
   const [activeNotebookId, setActiveNotebookId] = useState<string | null>(() => notebookIdFromHash())
   const [newNotebookId, setNewNotebookId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -36,9 +55,10 @@ export default function App() {
     let cancelled = false
     void (async () => {
       try {
-        await repository.ensureSession()
+        const activeAccount = await repository.ensureSession()
         const workspace = await repository.loadWorkspace()
         if (cancelled) return
+        setAccount(activeAccount)
         replaceData(workspace)
         setLoading(false)
         void getAiStatus().then(setAiStatus).catch(() => setAiStatus(null))
@@ -50,6 +70,13 @@ export default function App() {
     })()
     return () => { cancelled = true }
   }, [loadAttempt])
+
+  useEffect(() => {
+    if (!accountPrompt || !account) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('account')
+    window.history.replaceState(null, '', `${url.pathname}${url.search}`)
+  }, [account, accountPrompt])
 
   useEffect(() => {
     const syncFromHash = () => setActiveNotebookId(notebookIdFromHash())
@@ -122,12 +149,58 @@ export default function App() {
     }
   }
 
+  const showAccountWorkspace = (nextAccount: AccountIdentity, workspace: AppData) => {
+    setAccount(nextAccount)
+    replaceData(workspace)
+    setActiveNotebookId(null)
+    setNewNotebookId(null)
+    window.location.hash = ''
+    setLoadError('')
+    setSyncError('')
+  }
+
+  const signIn = async (email: string, password: string) => {
+    const nextAccount = await repository.signIn(email, password)
+    setAccount(nextAccount)
+    setLoading(true)
+    setAccountOpen(false)
+    replaceData(createEmptyAppData())
+    try {
+      const workspace = await repository.loadWorkspace()
+      showAccountWorkspace(nextAccount, workspace)
+    } catch (caught) {
+      setLoadError(caught instanceof Error ? caught.message : 'The account workspace could not be loaded.')
+      throw caught
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const signOut = async () => {
+    await repository.signOut()
+    setAccount(null)
+    setLoading(true)
+    setAccountOpen(false)
+    replaceData(createEmptyAppData())
+    try {
+      const guestAccount = await repository.ensureSession()
+      setAccount(guestAccount)
+      const workspace = await repository.loadWorkspace()
+      showAccountWorkspace(guestAccount, workspace)
+    } catch (caught) {
+      setLoadError(caught instanceof Error ? caught.message : 'A fresh guest workspace could not be opened.')
+      throw caught
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (loading) {
     return <main className="app-state-screen"><LoaderCircle className="spin" size={30} /><h1>Opening your notebooks</h1><p>Connecting securely to Supabase…</p></main>
   }
 
-  if (loadError) {
-    return <main className="app-state-screen error"><AlertTriangle size={30} /><h1>Supabase setup needed</h1><p>{loadError}</p><button className="primary-button" type="button" onClick={() => { setLoading(true); setLoadError(''); setLoadAttempt((value) => value + 1) }}><RefreshCw size={17} /> Try again</button></main>
+  if (loadError || !account) {
+    return <main className="app-state-screen error"><AlertTriangle size={30} /><h1>Supabase setup needed</h1><p>{loadError || 'The active Supabase account could not be resolved.'}</p><button className="primary-button" type="button" onClick={() => { setLoading(true); setLoadError(''); setLoadAttempt((value) => value + 1) }}><RefreshCw size={17} /> Try again</button></main>
   }
 
   return (
@@ -144,6 +217,8 @@ export default function App() {
           onUpdate={(recipe) => updateNotebook(activeNotebook.id, recipe)}
           onFlush={() => repository.flushNotebook(activeNotebook.id)}
           onOpenSettings={() => setSettingsOpen(true)}
+          account={account}
+          onOpenAccount={() => setAccountOpen(true)}
         />
       ) : (
         <HomeScreen
@@ -152,9 +227,24 @@ export default function App() {
           onOpen={openNotebook}
           onDelete={(id) => { void deleteNotebook(id) }}
           onOpenSettings={() => setSettingsOpen(true)}
+          account={account}
+          onOpenAccount={() => setAccountOpen(true)}
         />
       )}
       <SettingsDialog open={settingsOpen} data={data} settings={data.settings} aiStatus={aiStatus} onClose={() => setSettingsOpen(false)} onChange={updateSettings} onReset={() => { void clearWorkspace() }} />
+      <AuthDialog
+        key={account.id}
+        open={accountOpen}
+        account={account}
+        notebookCount={data.notebooks.length}
+        prompt={accountPrompt}
+        onClose={() => { setAccountOpen(false); setAccountPrompt(null) }}
+        onBeginUpgrade={async (email) => { await repository.beginAccountUpgrade(email, accountRedirect('confirmed')) }}
+        onSignIn={signIn}
+        onSetPassword={async (password) => { setAccount(await repository.setPassword(password)) }}
+        onSendPasswordReset={async (email) => { await repository.sendPasswordReset(email, accountRedirect('recovery')) }}
+        onSignOut={signOut}
+      />
     </>
   )
 }

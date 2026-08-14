@@ -10,6 +10,7 @@ A source-grounded NotebookLM-style interview project built with React, Vite, Sup
 - Live-web source discovery with review-before-import
 - Audio/video overviews, mind maps, reports, flashcards, quizzes, infographics, slides, and data tables
 - Notes, saved answers, export, light/dark/system theme, and English/German output
+- Guest workspaces, data-preserving account upgrades, email/password sign-in, password recovery, and local sign-out
 - Loading, retry, generation, empty, provider-limit, import, and persistence-error states
 
 ## Architecture
@@ -26,6 +27,12 @@ The Groq key exists only as an Edge Function secret. Every table has Row Level S
 
 The snapshot RPC performs each notebook update in one database transaction. `load_workspace()` returns one nested JSON document so a workspace does not silently stop at PostgREST's default row limit.
 
+## Authentication model
+
+The app opens immediately with an anonymous Supabase user. Choosing **Create account** links a verified email to that same user ID before a password is set, so existing notebooks keep their RLS owner and do not need to be copied. Signing in to a different existing account is intentionally separate and requires an explicit warning acknowledgment when the guest workspace contains notebooks.
+
+Hosted Auth configuration must keep anonymous sign-ins and manual identity linking enabled. Before deploying the frontend, add its exact production and preview URLs to `additional_redirect_urls`; confirmation and recovery links return to the application with an `account` action parameter.
+
 ## Supabase setup
 
 Prerequisites: Node.js 22+, Deno 2+, Supabase CLI, and a Supabase project.
@@ -36,7 +43,7 @@ Prerequisites: Node.js 22+, Deno 2+, Supabase CLI, and a Supabase project.
    supabase.exe link --project-ref YOUR_PROJECT_REF
    ```
 
-2. Push the hosted Auth configuration, including anonymous sign-ins:
+2. Push the hosted Auth configuration, including anonymous sign-ins, manual email linking, redirect URLs, and the 8-character password minimum:
 
    ```powershell
    supabase.exe config push --yes

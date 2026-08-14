@@ -9,7 +9,7 @@ export const supabaseConfigurationError = !supabaseUrl || !publishableKey
 
 export const supabase = supabaseUrl && publishableKey
   ? createClient(supabaseUrl, publishableKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     })
   : null
 

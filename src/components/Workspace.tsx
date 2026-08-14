@@ -13,7 +13,9 @@ import { artifactTitle } from '../data/artifacts'
 import { askAi, createArtifact } from '../lib/api'
 import { createId } from '../lib/id'
 import { makeSource } from '../lib/source'
+import type { AccountIdentity } from '../lib/repository'
 import type { AiStatus, AppSettings, Artifact, ArtifactConfig, ArtifactType, ChatMessage, Note, Notebook, Source } from '../types'
+import { AccountButton } from './AccountButton'
 import { AddSourceDialog } from './AddSourceDialog'
 import { ArtifactConfigDialog } from './ArtifactConfigDialog'
 import { ArtifactViewer } from './ArtifactViewer'
@@ -36,11 +38,13 @@ interface WorkspaceProps {
   onUpdate: (recipe: (notebook: Notebook) => Notebook) => Notebook | null
   onFlush: () => Promise<void>
   onOpenSettings: () => void
+  account: AccountIdentity
+  onOpenAccount: () => void
 }
 
 const emojiOptions = ['📓', '🚋', '🧠', '🔬', '📚', '🌍', '🎓', '💡']
 
-export function Workspace({ notebook, settings, startWithAddSource, aiStatus, onBack, onUpdate, onFlush, onOpenSettings }: WorkspaceProps) {
+export function Workspace({ notebook, settings, startWithAddSource, aiStatus, onBack, onUpdate, onFlush, onOpenSettings, account, onOpenAccount }: WorkspaceProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [addSourceOpen, setAddSourceOpen] = useState(startWithAddSource)
   const [sourceDetail, setSourceDetail] = useState<Source | null>(null)
@@ -177,7 +181,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
             <Sparkles size={14} />{aiStatus?.configured ? 'Groq AI' : 'Set up AI'}
           </button>
           <button className="outline-button" type="button" onClick={onOpenSettings}><Settings size={16} /><span>Settings</span></button>
-          <button className="avatar-button" type="button" aria-label="User profile">N</button>
+          <AccountButton account={account} onClick={onOpenAccount} />
         </div>
       </header>
 

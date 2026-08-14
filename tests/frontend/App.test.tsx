@@ -6,6 +6,11 @@ import App from '../../src/App'
 
 const mocks = vi.hoisted(() => ({
   ensureSession: vi.fn(),
+  beginAccountUpgrade: vi.fn(),
+  signIn: vi.fn(),
+  setPassword: vi.fn(),
+  sendPasswordReset: vi.fn(),
+  signOut: vi.fn(),
   loadWorkspace: vi.fn(),
   saveNotebook: vi.fn(),
   flushNotebook: vi.fn(),
@@ -19,6 +24,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../src/lib/repository', () => ({ repository: {
   ensureSession: mocks.ensureSession,
+  beginAccountUpgrade: mocks.beginAccountUpgrade,
+  signIn: mocks.signIn,
+  setPassword: mocks.setPassword,
+  sendPasswordReset: mocks.sendPasswordReset,
+  signOut: mocks.signOut,
   loadWorkspace: mocks.loadWorkspace,
   saveNotebook: mocks.saveNotebook,
   flushNotebook: mocks.flushNotebook,
@@ -48,8 +58,14 @@ async function createNotebookWithTextSource(user: ReturnType<typeof userEvent.se
 describe('NotebookLM clone with Supabase persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.history.replaceState(null, '', '/')
     window.location.hash = ''
-    mocks.ensureSession.mockResolvedValue({ id: 'anonymous-user' })
+    mocks.ensureSession.mockResolvedValue({ id: 'anonymous-user', email: null, isAnonymous: true })
+    mocks.beginAccountUpgrade.mockResolvedValue({ id: 'anonymous-user', email: null, isAnonymous: true })
+    mocks.signIn.mockResolvedValue({ id: 'account-user', email: 'person@example.com', isAnonymous: false })
+    mocks.setPassword.mockResolvedValue({ id: 'account-user', email: 'person@example.com', isAnonymous: false })
+    mocks.sendPasswordReset.mockResolvedValue(undefined)
+    mocks.signOut.mockResolvedValue(undefined)
     mocks.loadWorkspace.mockResolvedValue(createEmptyAppData())
     mocks.saveNotebook.mockResolvedValue(undefined)
     mocks.flushNotebook.mockResolvedValue(undefined)
@@ -106,5 +122,90 @@ describe('NotebookLM clone with Supabase persistence', () => {
     const saveButtons = within(messageStream).getAllByRole('button', { name: /Save to note/i })
     await user.click(saveButtons.at(-1)!)
     expect(screen.getByText('Saved chat response')).toBeInTheDocument()
+  })
+
+  it('opens the data-preserving account flow from the guest profile button', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await user.click(screen.getByRole('button', { name: 'Open guest account' }))
+
+    expect(screen.getByRole('heading', { name: 'Save this workspace' })).toBeInTheDocument()
+    expect(screen.getByText('Keep the same workspace')).toBeInTheDocument()
+    expect(screen.getByLabelText('0 guest notebooks')).toBeInTheDocument()
+  })
+
+  it('switches to an existing account workspace after successful sign-in', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await user.click(screen.getByRole('button', { name: 'Open guest account' }))
+    await user.click(screen.getByRole('tab', { name: 'Sign in' }))
+    await user.type(screen.getByLabelText('Email address'), 'person@example.com')
+    await user.type(screen.getByLabelText('Password'), 'valid-password')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(mocks.signIn).toHaveBeenCalledWith('person@example.com', 'valid-password')
+    expect(mocks.loadWorkspace).toHaveBeenCalledTimes(2)
+    expect(await screen.findByRole('button', { name: 'Open account for person@example.com' })).toBeInTheDocument()
+  })
+
+  it('never exposes guest data after authentication switches but the account workspace fails to load', async () => {
+    const user = userEvent.setup()
+    mocks.loadWorkspace
+      .mockResolvedValueOnce(createEmptyAppData())
+      .mockRejectedValueOnce(new Error('Account workspace unavailable'))
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await user.click(screen.getByRole('button', { name: 'Open guest account' }))
+    await user.click(screen.getByRole('tab', { name: 'Sign in' }))
+    await user.type(screen.getByLabelText('Email address'), 'person@example.com')
+    await user.type(screen.getByLabelText('Password'), 'valid-password')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('heading', { name: 'Supabase setup needed' })).toBeInTheDocument()
+    expect(screen.getByText('Account workspace unavailable')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Welcome to NotebookLM' })).not.toBeInTheDocument()
+  })
+
+  it('shows a retryable error when the initial Supabase session cannot be opened', async () => {
+    const user = userEvent.setup()
+    mocks.ensureSession.mockRejectedValueOnce(new Error('Session unavailable'))
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Supabase setup needed' })).toBeInTheDocument()
+    expect(screen.getByText('Session unavailable')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })).toBeInTheDocument()
+    expect(mocks.ensureSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('opens a verified recovery callback and removes its URL credentials after the session resolves', async () => {
+    window.history.replaceState(null, '', '/?account=recovery#access_token=secret-token')
+    mocks.ensureSession.mockResolvedValue({ id: 'account-user', email: 'person@example.com', isAnonymous: false })
+    render(<App />)
+
+    expect(await screen.findByText('Recovery link accepted')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(window.location.search).toBe('')
+    expect(window.location.hash).toBe('')
+  })
+
+  it('signs a permanent account out and opens a fresh guest workspace', async () => {
+    const user = userEvent.setup()
+    mocks.ensureSession
+      .mockResolvedValueOnce({ id: 'account-user', email: 'person@example.com', isAnonymous: false })
+      .mockResolvedValueOnce({ id: 'fresh-guest', email: null, isAnonymous: true })
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Open account for person@example.com' }))
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+
+    expect(mocks.signOut).toHaveBeenCalledOnce()
+    expect(mocks.ensureSession).toHaveBeenCalledTimes(2)
+    expect(await screen.findByRole('button', { name: 'Open guest account' })).toBeInTheDocument()
   })
 })
