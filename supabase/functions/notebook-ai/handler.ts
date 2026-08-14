@@ -1,4 +1,4 @@
-import { answerQuestion, discoverWebSources, generateArtifact, getAiStatus } from '../_shared/ai.ts'
+import { answerQuestion, deepResearchWebSources, discoverWebSources, generateArtifact, getAiStatus } from '../_shared/ai.ts'
 import { sourceFromRow, type SourceRow } from '../_shared/domain.ts'
 import { synthesizeSpeech } from '../_shared/groq.ts'
 import { authenticatedContext, type AuthContext, corsHeaders, errorResponse, HttpError, jsonResponse, optionsResponse, supabaseRpc } from '../_shared/http.ts'
@@ -45,6 +45,9 @@ export async function handleNotebookAiRequest(request: Request) {
     if (parsed.data.action === 'status') return jsonResponse(await getAiStatus())
     if (parsed.data.action === 'discover') {
       return jsonResponse({ results: await discoverWebSources(parsed.data.query, parsed.data.language) })
+    }
+    if (parsed.data.action === 'research') {
+      return jsonResponse(await deepResearchWebSources(parsed.data.query, parsed.data.language))
     }
     if (parsed.data.action === 'speech') {
       const audio = await synthesizeSpeech(parsed.data.text, parsed.data.voice)

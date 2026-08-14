@@ -55,6 +55,24 @@ Deno.test('notebook AI status reports an unauthorized Groq key as unconfigured',
   assert(!JSON.stringify(body).includes('groq-test-key'), 'Groq key leaked into status response')
 }))
 
+Deno.test('Groq rate-limit text is normalized to a retry header', () => withFunctionEnvironment(async () => {
+  globalThis.fetch = (input) => {
+    const url = String(input)
+    if (url.endsWith('/auth/v1/user')) return Promise.resolve(Response.json({ id: 'user-a' }))
+    if (url.endsWith('/chat/completions')) {
+      return Promise.resolve(Response.json({
+        error: { message: 'Rate limit reached. Please try again in 11.018s.' },
+      }, { status: 429 }))
+    }
+    throw new Error(`Unexpected request: ${url}`)
+  }
+  const response = await handleNotebookAiRequest(jsonRequest({
+    action: 'discover', query: 'Current transit reliability', language: 'English',
+  }))
+  assert(response.status === 429, 'Groq rate limit did not retain HTTP 429')
+  assert(response.headers.get('Retry-After') === '12', 'Groq text retry hint was not normalized')
+}))
+
 Deno.test('grounded chat loads sources through the caller-bound RPC', () => withFunctionEnvironment(async () => {
   const calls: string[] = []
   globalThis.fetch = async (input, init) => {
@@ -117,6 +135,62 @@ Deno.test('shared chat loads sources only through the token-bound RPC', () => wi
   assert(response.status === 200, `shared chat returned ${response.status}`)
   assert(rpcBody?.requested_share_token === '33333333-3333-4333-8333-333333333333', 'share token was not forwarded')
   assert(rpcBody?.requested_notebook_id === 'notebook-a', 'shared notebook id was not forwarded')
+}))
+
+Deno.test('deep research returns only deduplicated sources observed by Groq web tools', () => withFunctionEnvironment(async () => {
+  const scoutRequests: Record<string, unknown>[] = []
+  let synthesisRequest: Record<string, unknown> | undefined
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    if (request.url.endsWith('/auth/v1/user')) return Response.json({ id: 'researcher-a' })
+    if (request.url.endsWith('/chat/completions')) {
+      const requestBody = await request.json() as Record<string, unknown>
+      const tools = requestBody.tools as { type?: string }[] | undefined
+      if (!tools?.some((tool) => tool.type === 'browser_search')) {
+        synthesisRequest = requestBody
+        return Response.json({
+          model: 'openai/gpt-oss-120b',
+          choices: [{ message: { content: '## Executive summary\nVerified transit evidence from the supplied sources.' } }],
+        })
+      }
+      scoutRequests.push(requestBody)
+      return Response.json({
+        model: requestBody.model,
+        choices: [{ message: {
+          content: 'Verified transit evidence, plus a hallucinated link to https://fake.example.',
+          executed_tools: [
+            { type: 'browser_search', browser_results: [
+              { title: 'Primary transit study', url: 'https://research.example/study#findings', content: 'The study measured service reliability.', score: 0.94 },
+              { title: 'Primary transit study duplicate', url: 'https://research.example/study', content: 'Duplicate result.', score: 0.81 },
+              { title: 'Transport authority', url: 'https://authority.example/report', content: 'The authority published network performance.', score: 0.89 },
+              { title: 'Unsafe scheme', url: 'ftp://files.example/report', content: 'Not importable.', score: 1 },
+            ] },
+          ],
+        } }],
+      })
+    }
+    throw new Error(`Unexpected request: ${request.url}`)
+  }
+
+  const response = await handleNotebookAiRequest(jsonRequest({
+    action: 'research', query: 'How does service reliability affect public trust?', language: 'English',
+  }))
+  const body = await response.json()
+  assert(response.status === 200, `research returned ${response.status}`)
+  assert(body.report.includes('Executive summary'), 'research report missing')
+  assert(body.results.length === 2, 'tool results were not deduplicated or filtered')
+  assert(body.results[0]?.url === 'https://research.example/study', 'URL fragment was not canonicalized')
+  assert(!JSON.stringify(body.results).includes('fake.example'), 'model-authored URL escaped the tool evidence boundary')
+  assert(body.toolCount === 2, 'research action count missing')
+  assert(scoutRequests.length === 2, 'deep research did not investigate two independent angles')
+  assert(JSON.stringify(scoutRequests.map((request) => request.model)) === JSON.stringify(['openai/gpt-oss-120b', 'openai/gpt-oss-20b']), 'research scouts did not split model budgets')
+  for (const request of scoutRequests) {
+    assert(request.max_completion_tokens === 800, 'research scout exceeded the provider-safe output budget')
+    assert(request.reasoning_effort === 'low', 'browser research did not use the efficient reasoning budget')
+    assert(request.tool_choice === 'required', 'browser research did not require a tool call')
+  }
+  assert(JSON.stringify(synthesisRequest).includes('https://research.example/study'), 'synthesis did not receive verified sources')
+  assert(!JSON.stringify(synthesisRequest).includes('https://fake.example'), 'unverified scout URL reached synthesis')
 }))
 
 Deno.test('grounded chat refuses source IDs the RLS RPC cannot return', () => withFunctionEnvironment(async () => {

@@ -7,7 +7,7 @@ A source-grounded NotebookLM-style interview project built with React, Vite, Sup
 - Notebook library with responsive three-panel notebook workspace
 - PDF, DOCX, text, website, YouTube transcript, image OCR, and audio imports
 - Source selection, source details, grounded chat, exact-excerpt citations, and chat configuration
-- Live-web source discovery with review-before-import
+- Fast Research plus multi-step Deep Research reports with tool-backed, review-before-import web sources
 - Audio/video overviews, mind maps, reports, flashcards, quizzes, infographics, slides, and data tables
 - Notes, saved answers, export, light/dark/system theme, and English/German output
 - Guest workspaces, data-preserving account upgrades, email/password sign-in, password recovery, and local sign-out
@@ -104,7 +104,7 @@ tests/
   deployment/     # Hosted Supabase end-to-end verification
 ```
 
-`verify:supabase` creates two anonymous sessions, writes a temporary notebook and settings, proves save/load and cross-user RLS isolation, invokes a grounded Groq chat and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.
+`verify:supabase` creates two anonymous sessions, writes a temporary notebook and settings, proves save/load and cross-user RLS isolation, invokes Deep Research, grounded Groq chat, and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.
 
 On Windows, `test:database` expects PostgreSQL 18 in `C:\Program Files\PostgreSQL\18\bin`. It starts a disposable native cluster, applies the migration and security smoke tests, then removes the cluster again.
 

@@ -105,6 +105,19 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(mocks.saveNotebook).toHaveBeenCalled()
   })
 
+  it('opens Deep Research as an explicit empty research flow instead of a fixed sample search', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Welcome to NotebookLM' })
+    await user.click(screen.getByRole('button', { name: 'New notebook' }))
+    await user.click(screen.getByRole('button', { name: 'Close dialog' }))
+    await user.click(screen.getByRole('button', { name: /Try Deep Research/ }))
+
+    expect(screen.getByRole('button', { name: /^Deep Research/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByPlaceholderText('Ask a detailed research question')).toHaveValue('')
+  })
+
   it('flushes the Supabase snapshot before grounded chat and sends only notebook/source IDs', async () => {
     const user = userEvent.setup()
     render(<App />)
