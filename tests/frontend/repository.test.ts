@@ -59,6 +59,36 @@ describe('Supabase repository', () => {
     expect(signOut).toHaveBeenCalledWith({ scope: 'local' })
   })
 
+  it('loads a token-bound shared notebook without adding it to the viewer workspace', async () => {
+    const notebook = createBlankNotebook('Shared research')
+    const rpc = vi.fn().mockResolvedValue({ data: { access: 'full', notebook }, error: null })
+    const repository = createRepository({ rpc } as unknown as SupabaseClient)
+
+    await expect(repository.loadSharedNotebook('33333333-3333-4333-8333-333333333333')).resolves.toEqual({ access: 'full', notebook })
+    expect(rpc).toHaveBeenCalledWith('load_shared_notebook', {
+      requested_share_token: '33333333-3333-4333-8333-333333333333',
+    })
+  })
+
+  it('reports a revoked shared notebook without exposing another workspace', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null })
+    const repository = createRepository({ rpc } as unknown as SupabaseClient)
+
+    await expect(repository.loadSharedNotebook('33333333-3333-4333-8333-333333333333')).rejects.toThrow('unavailable or has been revoked')
+  })
+
+  it('updates sharing through the owner-bound RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { access: 'chat', token: '33333333-3333-4333-8333-333333333333' }, error: null })
+    const repository = createRepository({ rpc } as unknown as SupabaseClient)
+
+    await expect(repository.setNotebookSharing('notebook-a', 'chat')).resolves.toEqual({
+      access: 'chat', token: '33333333-3333-4333-8333-333333333333',
+    })
+    expect(rpc).toHaveBeenCalledWith('set_notebook_sharing', {
+      requested_notebook_id: 'notebook-a', requested_access: 'chat',
+    })
+  })
+
   it('serializes snapshots for the same notebook so older writes cannot win', async () => {
     const first = deferred<{ data: null; error: null }>()
     const rpc = vi.fn()

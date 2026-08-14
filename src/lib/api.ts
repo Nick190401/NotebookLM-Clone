@@ -47,6 +47,7 @@ export function getAiStatus() {
 export function askAi(input: {
   notebookId: string
   sourceIds: string[]
+  shareToken?: string
   message: string
   history: { role: 'user' | 'assistant'; content: string }[]
   config: ChatConfig

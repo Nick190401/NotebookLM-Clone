@@ -3,10 +3,12 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  Globe2,
   Menu,
   PanelLeftOpen,
   PanelRightOpen,
   Settings,
+  Share2,
   Sparkles,
 } from 'lucide-react'
 import { artifactTitle } from '../data/artifacts'
@@ -25,6 +27,7 @@ import { ChatPanel } from './ChatPanel'
 import { NoteEditorDialog } from './NoteEditorDialog'
 import { SourceDetailDialog } from './SourceDetailDialog'
 import { SourcePanel } from './SourcePanel'
+import { ShareDialog } from './ShareDialog'
 import { StudioPanel } from './StudioPanel'
 
 type MobileTab = 'sources' | 'chat' | 'studio'
@@ -34,6 +37,8 @@ interface WorkspaceProps {
   settings: AppSettings
   startWithAddSource: boolean
   aiStatus: AiStatus | null
+  shareAccess?: 'full' | 'chat'
+  shareToken?: string
   onBack: () => void
   onUpdate: (recipe: (notebook: Notebook) => Notebook) => Notebook | null
   onFlush: () => Promise<void>
@@ -44,9 +49,11 @@ interface WorkspaceProps {
 
 const emojiOptions = ['📓', '🚋', '🧠', '🔬', '📚', '🌍', '🎓', '💡']
 
-export function Workspace({ notebook, settings, startWithAddSource, aiStatus, onBack, onUpdate, onFlush, onOpenSettings, account, onOpenAccount }: WorkspaceProps) {
+export function Workspace({ notebook, settings, startWithAddSource, aiStatus, shareAccess, shareToken, onBack, onUpdate, onFlush, onOpenSettings, account, onOpenAccount }: WorkspaceProps) {
+  const readOnly = Boolean(shareAccess)
+  const chatOnly = shareAccess === 'chat'
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
-  const [addSourceOpen, setAddSourceOpen] = useState(startWithAddSource)
+  const [addSourceOpen, setAddSourceOpen] = useState(!readOnly && startWithAddSource)
   const [sourceDetail, setSourceDetail] = useState<Source | null>(null)
   const [chatConfigOpen, setChatConfigOpen] = useState(false)
   const [artifactConfigType, setArtifactConfigType] = useState<ArtifactType | null>(null)
@@ -54,16 +61,17 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
   const [noteEditorOpen, setNoteEditorOpen] = useState(false)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [chatBusy, setChatBusy] = useState(false)
-  const [sourcesVisible, setSourcesVisible] = useState(true)
+  const [sourcesVisible, setSourcesVisible] = useState(!chatOnly)
   const [chatVisible, setChatVisible] = useState(true)
-  const [studioVisible, setStudioVisible] = useState(true)
+  const [studioVisible, setStudioVisible] = useState(!chatOnly)
   const [emojiMenuOpen, setEmojiMenuOpen] = useState(false)
   const [titleEditing, setTitleEditing] = useState(false)
   const [toast, setToast] = useState('')
   const [sourceResearchQuery, setSourceResearchQuery] = useState('')
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
 
   const update = (recipe: (current: Notebook) => Notebook) => {
-    return onUpdate((current) => ({ ...recipe(current), updatedAt: Date.now() }))
+    return onUpdate((current) => readOnly ? recipe(current) : { ...recipe(current), updatedAt: Date.now() })
   }
 
   const showToast = (message: string) => {
@@ -96,6 +104,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
         history: notebook.messages.map(({ role, content: messageContent }) => ({ role, content: messageContent })),
         config: notebook.chatConfig,
         language: settings.outputLanguage,
+        shareToken,
       })
       const assistantMessage: ChatMessage = { id: createId('message'), role: 'assistant', content: answer.content, citations: answer.citations, createdAt: Date.now() }
       update((current) => ({ ...current, messages: [...current.messages, assistantMessage] }))
@@ -150,7 +159,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
     setNoteEditorOpen(true)
   }
 
-  const visibleCount = [sourcesVisible, chatVisible, studioVisible].filter(Boolean).length
+  const visibleCount = [sourcesVisible && !chatOnly, chatVisible, studioVisible && !chatOnly].filter(Boolean).length
   const gridColumns = visibleCount === 3 ? 'minmax(250px, 0.82fr) minmax(420px, 1.75fr) minmax(280px, 1fr)' : visibleCount === 2 ? 'minmax(320px, 1fr) minmax(420px, 1.55fr)' : 'minmax(0, 1fr)'
 
   return (
@@ -160,11 +169,11 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
           <button className="icon-button back-button" type="button" onClick={onBack} aria-label="Back to notebooks"><ArrowLeft size={20} /></button>
           <Brand compact />
           <div className="notebook-title-group">
-            <div className="emoji-picker-wrap">
+            {readOnly ? <span className="notebook-emoji-button read-only" aria-hidden="true">{notebook.emoji}</span> : <div className="emoji-picker-wrap">
               <button className="notebook-emoji-button" type="button" onClick={() => setEmojiMenuOpen(!emojiMenuOpen)} aria-label="Change notebook emoji">{notebook.emoji}<ChevronDown size={12} /></button>
               {emojiMenuOpen && <div className="emoji-menu">{emojiOptions.map((emoji) => <button type="button" key={emoji} onClick={() => { update((current) => ({ ...current, emoji })); setEmojiMenuOpen(false) }}>{emoji}</button>)}</div>}
-            </div>
-            {titleEditing ? (
+            </div>}
+            {!readOnly && titleEditing ? (
               <input
                 className="notebook-title-input"
                 defaultValue={notebook.title}
@@ -172,31 +181,39 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
                 onBlur={(event) => { const title = event.target.value.trim(); if (title) update((current) => ({ ...current, title })); setTitleEditing(false) }}
                 onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') setTitleEditing(false) }}
               />
-            ) : <button className="notebook-title-button" type="button" onClick={() => setTitleEditing(true)}>{notebook.title}</button>}
-            <span className="saved-state"><Check size={12} /> Supabase</span>
+            ) : readOnly ? <span className="notebook-title-button read-only">{notebook.title}</span> : <button className="notebook-title-button" type="button" onClick={() => setTitleEditing(true)}>{notebook.title}</button>}
+            <span className="saved-state">{readOnly ? <><Globe2 size={12} /> Read only</> : <><Check size={12} /> Supabase</>}</span>
           </div>
         </div>
         <div className="workspace-actions">
-          <button className={`ai-status-chip ${aiStatus?.configured ? 'ready' : 'setup'}`} type="button" onClick={onOpenSettings} title={aiStatus?.configured ? `Groq · ${aiStatus.primaryModel}` : 'Configure Groq'}>
-            <Sparkles size={14} />{aiStatus?.configured ? 'Groq AI' : 'Set up AI'}
-          </button>
-          <button className="outline-button" type="button" onClick={onOpenSettings}><Settings size={16} /><span>Settings</span></button>
-          <AccountButton account={account} onClick={onOpenAccount} />
+          {readOnly ? (
+            <span className="shared-access-chip"><Globe2 size={15} /><span><strong>Shared notebook</strong><small>{chatOnly ? 'Chat only' : 'Full view'}</small></span></span>
+          ) : (
+            <>
+              <button className="outline-button share-trigger-button" type="button" onClick={() => setShareDialogOpen(true)}><Share2 size={16} /><span>Share</span></button>
+              <button className={`ai-status-chip ${aiStatus?.configured ? 'ready' : 'setup'}`} type="button" onClick={onOpenSettings} title={aiStatus?.configured ? `Groq · ${aiStatus.primaryModel}` : 'Configure Groq'}>
+                <Sparkles size={14} />{aiStatus?.configured ? 'Groq AI' : 'Set up AI'}
+              </button>
+              <button className="outline-button settings-trigger-button" type="button" onClick={onOpenSettings}><Settings size={16} /><span>Settings</span></button>
+              <AccountButton account={account} onClick={onOpenAccount} />
+            </>
+          )}
         </div>
       </header>
 
-      <nav className="mobile-workspace-tabs" aria-label="Notebook sections">
+      {!chatOnly && <nav className="mobile-workspace-tabs" aria-label="Notebook sections">
         {(['sources', 'chat', 'studio'] as const).map((tab) => <button type="button" key={tab} className={mobileTab === tab ? 'active' : ''} onClick={() => setMobileTab(tab)}>{tab === 'sources' ? `Sources (${notebook.sources.length})` : tab[0].toUpperCase() + tab.slice(1)}</button>)}
-      </nav>
+      </nav>}
 
-      <div className="workspace-shell">
-        {!sourcesVisible && <button className="collapsed-panel-button sources-collapsed-button" type="button" onClick={() => setSourcesVisible(true)}><PanelLeftOpen size={18} /> Sources</button>}
+      <div className={`workspace-shell ${chatOnly ? 'chat-only' : ''}`}>
+        {!chatOnly && !sourcesVisible && <button className="collapsed-panel-button sources-collapsed-button" type="button" onClick={() => setSourcesVisible(true)}><PanelLeftOpen size={18} /> Sources</button>}
         {!chatVisible && <button className="collapsed-panel-button chat-collapsed-button" type="button" onClick={() => setChatVisible(true)}><Menu size={18} /> Chat</button>}
-        {!studioVisible && <button className="collapsed-panel-button studio-collapsed-button" type="button" onClick={() => setStudioVisible(true)}><PanelRightOpen size={18} /> Studio</button>}
+        {!chatOnly && !studioVisible && <button className="collapsed-panel-button studio-collapsed-button" type="button" onClick={() => setStudioVisible(true)}><PanelRightOpen size={18} /> Studio</button>}
         <div className="workspace-grid" style={{ gridTemplateColumns: gridColumns }}>
-          {sourcesVisible && <div className={mobileTab === 'sources' ? 'mobile-active-panel' : 'mobile-hidden-panel'}>
+          {!chatOnly && sourcesVisible && <div className={mobileTab === 'sources' ? 'mobile-active-panel' : 'mobile-hidden-panel'}>
             <SourcePanel
               sources={notebook.sources}
+              readOnly={readOnly}
               onAdd={() => setAddSourceOpen(true)}
               onResearch={(query) => { setSourceResearchQuery(query); setAddSourceOpen(true) }}
               onToggle={toggleSource}
@@ -212,6 +229,8 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
               sources={notebook.sources}
               config={notebook.chatConfig}
               busy={chatBusy}
+              readOnly={readOnly}
+              canOpenSources={!chatOnly}
               onSend={sendMessage}
               onAddSource={() => setAddSourceOpen(true)}
               onConfigure={() => setChatConfigOpen(true)}
@@ -221,10 +240,11 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
               onCollapse={() => setChatVisible(false)}
             />
           </div>}
-          {studioVisible && <div className={mobileTab === 'studio' ? 'mobile-active-panel' : 'mobile-hidden-panel'}>
+          {!chatOnly && studioVisible && <div className={mobileTab === 'studio' ? 'mobile-active-panel' : 'mobile-hidden-panel'}>
             <StudioPanel
               artifacts={notebook.artifacts}
               notes={notebook.notes}
+              readOnly={readOnly}
               sourceCount={notebook.sources.length}
               settings={settings}
               onGenerate={generateArtifact}
@@ -241,19 +261,21 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, on
         </div>
       </div>
 
-      <AddSourceDialog key={addSourceOpen ? sourceResearchQuery || 'manual-open' : 'closed'} open={addSourceOpen} language={settings.outputLanguage} initialQuery={sourceResearchQuery} onClose={() => { setAddSourceOpen(false); setSourceResearchQuery('') }} onAdd={addSources} />
-      <SourceDetailDialog source={sourceDetail} onClose={() => setSourceDetail(null)} onToggle={toggleSource} />
-      <ChatConfigDialog key={`${chatConfigOpen}-${notebook.chatConfig.style}-${notebook.chatConfig.length}`} open={chatConfigOpen} config={notebook.chatConfig} onClose={() => setChatConfigOpen(false)} onSave={(chatConfig) => update((current) => ({ ...current, chatConfig }))} />
-      <ArtifactConfigDialog key={artifactConfigType ?? 'artifact-config-closed'} type={artifactConfigType} settings={settings} onClose={() => setArtifactConfigType(null)} onGenerate={generateArtifact} />
-      <ArtifactViewer artifact={artifactViewer} sources={notebook.sources} onClose={() => setArtifactViewer(null)} />
-      <NoteEditorDialog
+      {!readOnly && <AddSourceDialog key={addSourceOpen ? sourceResearchQuery || 'manual-open' : 'closed'} open={addSourceOpen} language={settings.outputLanguage} initialQuery={sourceResearchQuery} onClose={() => { setAddSourceOpen(false); setSourceResearchQuery('') }} onAdd={addSources} />}
+      {!chatOnly && <SourceDetailDialog source={sourceDetail} onClose={() => setSourceDetail(null)} onToggle={toggleSource} />}
+      {!readOnly && <ChatConfigDialog key={`${chatConfigOpen}-${notebook.chatConfig.style}-${notebook.chatConfig.length}`} open={chatConfigOpen} config={notebook.chatConfig} onClose={() => setChatConfigOpen(false)} onSave={(chatConfig) => update((current) => ({ ...current, chatConfig }))} />}
+      {!readOnly && <ArtifactConfigDialog key={artifactConfigType ?? 'artifact-config-closed'} type={artifactConfigType} settings={settings} onClose={() => setArtifactConfigType(null)} onGenerate={generateArtifact} />}
+      {!chatOnly && <ArtifactViewer artifact={artifactViewer} sources={notebook.sources} onClose={() => setArtifactViewer(null)} />}
+      {!chatOnly && <NoteEditorDialog
         key={`${noteEditorOpen}-${activeNote?.id ?? 'new'}`}
         open={noteEditorOpen}
         note={activeNote}
+        readOnly={readOnly}
         onClose={() => setNoteEditorOpen(false)}
         onSave={saveNote}
         onConvert={(note) => addSources([makeSource({ title: note.title, kind: 'text', origin: 'Converted note', content: note.body })])}
-      />
+      />}
+      {!readOnly && <ShareDialog key={`${shareDialogOpen}-${notebook.id}`} open={shareDialogOpen} notebookId={notebook.id} notebookTitle={notebook.title} onClose={() => setShareDialogOpen(false)} />}
       {toast && <div className="toast" role="status"><Sparkles size={16} />{toast}</div>}
     </main>
   )

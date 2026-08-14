@@ -9,6 +9,8 @@ import { HomeScreen } from './components/HomeScreen'
 import { SettingsDialog } from './components/SettingsDialog'
 import { Workspace } from './components/Workspace'
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 function notebookIdFromHash() {
   const match = window.location.hash.match(/^#\/notebook\/([^/]+)$/)
   return match?.[1] ?? null
@@ -29,6 +31,12 @@ function accountRedirect(action: Exclude<AccountPrompt, null>) {
   return url.toString()
 }
 
+function sharedRouteFromHash() {
+  const match = window.location.hash.match(/^#\/shared\/([^/]+)$/)
+  if (!match) return { present: false, token: null }
+  return { present: true, token: UUID_PATTERN.test(match[1]) ? match[1] : null }
+}
+
 export default function App() {
   const [data, setData] = useState<AppData>(() => createEmptyAppData())
   const dataRef = useRef(data)
@@ -43,6 +51,8 @@ export default function App() {
   const [loadError, setLoadError] = useState('')
   const [syncError, setSyncError] = useState('')
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const [sharedToken, setSharedToken] = useState<string | null>(null)
+  const [sharedAccess, setSharedAccess] = useState<'full' | 'chat' | null>(null)
 
   const replaceData = (next: AppData) => {
     dataRef.current = next
@@ -56,10 +66,27 @@ export default function App() {
     void (async () => {
       try {
         const activeAccount = await repository.ensureSession()
+        const sharedRoute = sharedRouteFromHash()
+        if (sharedRoute.present && !sharedRoute.token) throw new Error('This shared notebook link is invalid.')
+        if (sharedRoute.token) {
+          const shared = await repository.loadSharedNotebook(sharedRoute.token)
+          if (cancelled) return
+          setAccount(activeAccount)
+          replaceData({ notebooks: [shared.notebook], settings: createEmptyAppData().settings })
+          setActiveNotebookId(shared.notebook.id)
+          setSharedToken(sharedRoute.token)
+          setSharedAccess(shared.access)
+          setAiStatus(null)
+          setLoading(false)
+          return
+        }
         const workspace = await repository.loadWorkspace()
         if (cancelled) return
         setAccount(activeAccount)
         replaceData(workspace)
+        setActiveNotebookId(notebookIdFromHash())
+        setSharedToken(null)
+        setSharedAccess(null)
         setLoading(false)
         void getAiStatus().then(setAiStatus).catch(() => setAiStatus(null))
       } catch (caught) {
@@ -79,10 +106,20 @@ export default function App() {
   }, [account, accountPrompt])
 
   useEffect(() => {
-    const syncFromHash = () => setActiveNotebookId(notebookIdFromHash())
+    const syncFromHash = () => {
+      const nextSharedRoute = sharedRouteFromHash()
+      const currentlyShared = sharedToken !== null || sharedAccess !== null
+      if (nextSharedRoute.present !== currentlyShared || (nextSharedRoute.token && nextSharedRoute.token !== sharedToken)) {
+        setLoading(true)
+        setLoadError('')
+        setLoadAttempt((value) => value + 1)
+        return
+      }
+      if (!nextSharedRoute.present) setActiveNotebookId(notebookIdFromHash())
+    }
     window.addEventListener('hashchange', syncFromHash)
     return () => window.removeEventListener('hashchange', syncFromHash)
-  }, [])
+  }, [sharedAccess, sharedToken])
 
   useEffect(() => {
     const root = document.documentElement
@@ -127,6 +164,21 @@ export default function App() {
     void repository.saveSettings(settings).then(() => setSyncError('')).catch(recordPersistenceError)
   }
 
+  const updateSharedNotebook = (id: string, recipe: (notebook: Notebook) => Notebook) => {
+    const current = dataRef.current.notebooks.find((notebook) => notebook.id === id)
+    if (!current) return null
+    const next = recipe(current)
+    replaceData({ ...dataRef.current, notebooks: dataRef.current.notebooks.map((notebook) => notebook.id === id ? next : notebook) })
+    return next
+  }
+
+  const leaveSharedNotebook = () => {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    setLoadError('')
+    setLoading(true)
+    setLoadAttempt((value) => value + 1)
+  }
+
   const deleteNotebook = async (id: string) => {
     try {
       await repository.deleteNotebook(id)
@@ -154,6 +206,8 @@ export default function App() {
     replaceData(workspace)
     setActiveNotebookId(null)
     setNewNotebookId(null)
+    setSharedToken(null)
+    setSharedAccess(null)
     window.location.hash = ''
     setLoadError('')
     setSyncError('')
@@ -196,11 +250,13 @@ export default function App() {
   }
 
   if (loading) {
-    return <main className="app-state-screen"><LoaderCircle className="spin" size={30} /><h1>Opening your notebooks</h1><p>Connecting securely to Supabase…</p></main>
+    const openingSharedNotebook = sharedRouteFromHash().present
+    return <main className="app-state-screen"><LoaderCircle className="spin" size={30} /><h1>{openingSharedNotebook ? 'Opening shared notebook' : 'Opening your notebooks'}</h1><p>Connecting securely to Supabase…</p></main>
   }
 
   if (loadError || !account) {
-    return <main className="app-state-screen error"><AlertTriangle size={30} /><h1>Supabase setup needed</h1><p>{loadError || 'The active Supabase account could not be resolved.'}</p><button className="primary-button" type="button" onClick={() => { setLoading(true); setLoadError(''); setLoadAttempt((value) => value + 1) }}><RefreshCw size={17} /> Try again</button></main>
+    const sharedRouteFailed = sharedRouteFromHash().present
+    return <main className="app-state-screen error"><AlertTriangle size={30} /><h1>{sharedRouteFailed ? 'Shared notebook unavailable' : 'Supabase setup needed'}</h1><p>{loadError || 'The active Supabase account could not be resolved.'}</p><button className="primary-button" type="button" onClick={sharedRouteFailed ? leaveSharedNotebook : () => { setLoading(true); setLoadError(''); setLoadAttempt((value) => value + 1) }}>{sharedRouteFailed ? null : <RefreshCw size={17} />}{sharedRouteFailed ? 'Go to my notebooks' : 'Try again'}</button></main>
   }
 
   return (
@@ -208,14 +264,16 @@ export default function App() {
       {syncError && <div className="sync-error-banner" role="alert"><Cloud size={16} /><span>{syncError}</span><button type="button" onClick={() => setSyncError('')}>Dismiss</button></div>}
       {activeNotebook ? (
         <Workspace
-          key={activeNotebook.id}
+          key={`${activeNotebook.id}-${sharedToken ?? 'owner'}`}
           notebook={activeNotebook}
           settings={data.settings}
-          startWithAddSource={newNotebookId === activeNotebook.id}
+          startWithAddSource={!sharedToken && newNotebookId === activeNotebook.id}
           aiStatus={aiStatus}
-          onBack={() => { window.location.hash = ''; setActiveNotebookId(null); setNewNotebookId(null) }}
-          onUpdate={(recipe) => updateNotebook(activeNotebook.id, recipe)}
-          onFlush={() => repository.flushNotebook(activeNotebook.id)}
+          shareAccess={sharedAccess ?? undefined}
+          shareToken={sharedToken ?? undefined}
+          onBack={sharedToken ? leaveSharedNotebook : () => { window.location.hash = ''; setActiveNotebookId(null); setNewNotebookId(null) }}
+          onUpdate={(recipe) => sharedToken ? updateSharedNotebook(activeNotebook.id, recipe) : updateNotebook(activeNotebook.id, recipe)}
+          onFlush={() => sharedToken ? Promise.resolve() : repository.flushNotebook(activeNotebook.id)}
           onOpenSettings={() => setSettingsOpen(true)}
           account={account}
           onOpenAccount={() => setAccountOpen(true)}
@@ -231,8 +289,8 @@ export default function App() {
           onOpenAccount={() => setAccountOpen(true)}
         />
       )}
-      <SettingsDialog open={settingsOpen} data={data} settings={data.settings} aiStatus={aiStatus} onClose={() => setSettingsOpen(false)} onChange={updateSettings} onReset={() => { void clearWorkspace() }} />
-      <AuthDialog
+      {!sharedToken && <SettingsDialog open={settingsOpen} data={data} settings={data.settings} aiStatus={aiStatus} onClose={() => setSettingsOpen(false)} onChange={updateSettings} onReset={() => { void clearWorkspace() }} />}
+      {!sharedToken && <AuthDialog
         key={account.id}
         open={accountOpen}
         account={account}
@@ -244,7 +302,7 @@ export default function App() {
         onSetPassword={async (password) => { setAccount(await repository.setPassword(password)) }}
         onSendPasswordReset={async (email) => { await repository.sendPasswordReset(email, accountRedirect('recovery')) }}
         onSignOut={signOut}
-      />
+      />}
     </>
   )
 }

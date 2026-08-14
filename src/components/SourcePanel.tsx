@@ -15,6 +15,7 @@ import { SourceIcon } from './ProductIcon'
 
 interface SourcePanelProps {
   sources: Source[]
+  readOnly?: boolean
   onAdd: () => void
   onResearch: (query: string) => void
   onToggle: (id: string) => void
@@ -26,6 +27,7 @@ interface SourcePanelProps {
 
 export function SourcePanel({
   sources,
+  readOnly = false,
   onAdd,
   onResearch,
   onToggle,
@@ -54,18 +56,18 @@ export function SourcePanel({
         </button>
       </header>
       <div className="panel-scroll sources-scroll">
-        <button className="panel-add-button" type="button" onClick={onAdd}>
+        {!readOnly && <button className="panel-add-button" type="button" onClick={onAdd}>
           <Plus size={19} />
           Add sources
-        </button>
+        </button>}
 
-        <button className="deep-research-banner" type="button" onClick={() => onResearch('Current developments and reliable evidence')}>
+        {!readOnly && <button className="deep-research-banner" type="button" onClick={() => onResearch('Current developments and reliable evidence')}>
           <span className="research-spark"><Sparkles size={19} /></span>
           <span><strong>Try Deep Research</strong><small>Build an in-depth report and find new sources</small></span>
           <ArrowRight size={17} />
-        </button>
+        </button>}
 
-        <div className="source-research-box">
+        {!readOnly && <div className="source-research-box">
           <div className="source-research-input">
             <Search size={19} />
             <input
@@ -83,7 +85,7 @@ export function SourcePanel({
               <ArrowRight size={19} />
             </button>
           </div>
-        </div>
+        </div>}
 
         {sources.length > 0 ? (
           <div className="source-list-wrap">
@@ -99,7 +101,7 @@ export function SourcePanel({
             </div>
             <div className="source-list">
               {sources.map((source) => (
-                <div className="source-row" key={source.id}>
+                <div className={`source-row ${readOnly ? 'read-only' : ''}`} key={source.id}>
                   <button className="source-open-button" type="button" onClick={() => onOpen(source)}>
                     <span className={`source-kind-icon source-${source.kind}`}><SourceIcon kind={source.kind} size={17} /></span>
                     <span className="source-row-copy"><strong>{source.title}</strong><small>{source.kind.toUpperCase()}</small></span>
@@ -113,15 +115,15 @@ export function SourcePanel({
                   >
                     {source.selected && <Check size={14} />}
                   </button>
-                  <button
+                  {!readOnly && <button
                     className="source-more-button"
                     type="button"
                     aria-label={`More options for ${source.title}`}
                     onClick={() => setMenuFor(menuFor === source.id ? null : source.id)}
                   >
                     <MoreVertical size={16} />
-                  </button>
-                  {menuFor === source.id && (
+                  </button>}
+                  {!readOnly && menuFor === source.id && (
                     <div className="context-menu source-context-menu">
                       <button type="button" onClick={() => onOpen(source)}>Open source guide</button>
                       <button
@@ -140,9 +142,9 @@ export function SourcePanel({
         ) : (
           <div className="panel-empty sources-empty">
             <span className="empty-document"><span /><span /><span /></span>
-            <h3>Saved sources will appear here</h3>
-            <p>Add PDFs, websites, text, videos, or audio files to begin.</p>
-            <button className="primary-button compact" type="button" onClick={onAdd}>Upload a source</button>
+            <h3>{readOnly ? 'No shared sources' : 'Saved sources will appear here'}</h3>
+            <p>{readOnly ? 'The notebook owner has not shared any source material.' : 'Add PDFs, websites, text, videos, or audio files to begin.'}</p>
+            {!readOnly && <button className="primary-button compact" type="button" onClick={onAdd}>Upload a source</button>}
           </div>
         )}
       </div>

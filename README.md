@@ -11,6 +11,7 @@ A source-grounded NotebookLM-style interview project built with React, Vite, Sup
 - Audio/video overviews, mind maps, reports, flashcards, quizzes, infographics, slides, and data tables
 - Notes, saved answers, export, light/dark/system theme, and English/German output
 - Guest workspaces, data-preserving account upgrades, email/password sign-in, password recovery, and local sign-out
+- Revocable public links with full-notebook or chat-only access
 - Loading, retry, generation, empty, provider-limit, import, and persistence-error states
 
 ## Architecture
@@ -24,6 +25,8 @@ React/Vite browser
 ```
 
 The Groq key exists only as an Edge Function secret. Every table has Row Level Security and every policy scopes rows to `(select auth.uid())`. The browser sends only notebook/source IDs for chat and artifact generation; the Edge Function reloads those sources through an authenticated RPC that forwards the caller JWT and therefore remains subject to RLS.
+
+Public notebooks do not weaken those owner policies. A UUID share token is checked by narrow RPCs: full access returns a read-only notebook without the owner's chat history, while chat-only access redacts source text and Studio content from the browser. Grounded shared chat loads source text server-side through a separate token-bound RPC. Turning sharing off invalidates the link, and turning it on again creates a new token.
 
 The snapshot RPC performs each notebook update in one database transaction. `load_workspace()` returns one nested JSON document so a workspace does not silently stop at PostgREST's default row limit.
 
@@ -96,12 +99,9 @@ Test code is kept out of production modules:
 ```text
 tests/
   frontend/       # Vitest component and repository tests
+  functions/      # Deno unit and integration tests for Edge Functions
   database/       # Disposable PostgreSQL migration and RLS smoke tests
   deployment/     # Hosted Supabase end-to-end verification
-supabase/functions/tests/
-  _shared/        # Shared Edge Function unit tests
-  integration/    # Cross-function request tests
-  source-import/  # Import parsing tests
 ```
 
 `verify:supabase` creates two anonymous sessions, writes a temporary notebook and settings, proves save/load and cross-user RLS isolation, invokes a grounded Groq chat and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.
@@ -118,8 +118,8 @@ The migration in `supabase/migrations` creates:
 - `chat_messages`
 - `artifacts`
 - `notes`
-- `save_notebook_snapshot(jsonb)`, `load_workspace()`, `load_ai_sources(text, text[])`, and `clear_workspace()`
+- `save_notebook_snapshot(jsonb)`, `load_workspace()`, `load_ai_sources(text, text[])`, token-bound shared-read functions, and `clear_workspace()`
 
-All tables have explicit grants, authenticated-only RLS policies, composite ownership keys, cascade cleanup, constraints, and indexes for notebook-scoped reads. RPC execution is revoked from `public` and `anon` and granted only to `authenticated` and `service_role`.
+All tables have explicit grants, authenticated-only RLS policies, composite ownership keys, cascade cleanup, constraints, and indexes for notebook-scoped reads. RPC execution is revoked from `public` and `anon` and granted only to `authenticated` and `service_role`. Shared-read helpers are `SECURITY DEFINER` functions in a non-exposed `private` schema with an empty `search_path`; public wrappers remain invoker-safe.
 
 Source URL imports allow only public HTTP(S) destinations, reject local/private DNS results and every redirect target, cap downloads, and strip non-content HTML. Source text is always treated as untrusted data inside AI prompts.

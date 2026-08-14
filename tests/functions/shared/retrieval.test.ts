@@ -1,5 +1,5 @@
-import type { Source } from '../../_shared/domain.ts'
-import { formatContext, retrieveChunks } from '../../_shared/retrieval.ts'
+import type { Source } from '../../../supabase/functions/_shared/domain.ts'
+import { formatContext, retrieveChunks } from '../../../supabase/functions/_shared/retrieval.ts'
 
 function source(id: string, content: string, selected = true): Source {
   return { id, title: `Source ${id}`, kind: 'text', origin: 'test', content, summary: '', topics: [], selected, createdAt: 1 }

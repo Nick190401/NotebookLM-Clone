@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   sendPasswordReset: vi.fn(),
   signOut: vi.fn(),
   loadWorkspace: vi.fn(),
+  loadSharedNotebook: vi.fn(),
+  getNotebookSharing: vi.fn(),
+  setNotebookSharing: vi.fn(),
   saveNotebook: vi.fn(),
   flushNotebook: vi.fn(),
   saveSettings: vi.fn(),
@@ -30,6 +33,9 @@ vi.mock('../../src/lib/repository', () => ({ repository: {
   sendPasswordReset: mocks.sendPasswordReset,
   signOut: mocks.signOut,
   loadWorkspace: mocks.loadWorkspace,
+  loadSharedNotebook: mocks.loadSharedNotebook,
+  getNotebookSharing: mocks.getNotebookSharing,
+  setNotebookSharing: mocks.setNotebookSharing,
   saveNotebook: mocks.saveNotebook,
   flushNotebook: mocks.flushNotebook,
   saveSettings: mocks.saveSettings,
@@ -59,7 +65,6 @@ describe('NotebookLM clone with Supabase persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.history.replaceState(null, '', '/')
-    window.location.hash = ''
     mocks.ensureSession.mockResolvedValue({ id: 'anonymous-user', email: null, isAnonymous: true })
     mocks.beginAccountUpgrade.mockResolvedValue({ id: 'anonymous-user', email: null, isAnonymous: true })
     mocks.signIn.mockResolvedValue({ id: 'account-user', email: 'person@example.com', isAnonymous: false })
@@ -67,6 +72,8 @@ describe('NotebookLM clone with Supabase persistence', () => {
     mocks.sendPasswordReset.mockResolvedValue(undefined)
     mocks.signOut.mockResolvedValue(undefined)
     mocks.loadWorkspace.mockResolvedValue(createEmptyAppData())
+    mocks.getNotebookSharing.mockResolvedValue({ access: 'private', token: null })
+    mocks.setNotebookSharing.mockResolvedValue({ access: 'private', token: null })
     mocks.saveNotebook.mockResolvedValue(undefined)
     mocks.flushNotebook.mockResolvedValue(undefined)
     mocks.saveSettings.mockResolvedValue(undefined)
@@ -207,5 +214,104 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(mocks.signOut).toHaveBeenCalledOnce()
     expect(mocks.ensureSession).toHaveBeenCalledTimes(2)
     expect(await screen.findByRole('button', { name: 'Open guest account' })).toBeInTheDocument()
+  })
+
+  it('opens a token-bound chat-only notebook without exposing owner panels or writes', async () => {
+    const shareToken = '11111111-1111-4111-8111-111111111111'
+    window.history.replaceState(null, '', `/#/shared/${shareToken}`)
+    mocks.loadSharedNotebook.mockResolvedValue({
+      access: 'chat',
+      notebook: {
+        id: 'shared-notebook',
+        title: 'Shared transit research',
+        emoji: '📓',
+        sources: [{
+          id: 'shared-source',
+          title: 'Transit reliability research',
+          kind: 'text',
+          origin: '',
+          content: '',
+          summary: '',
+          topics: [],
+          selected: true,
+          createdAt: 1,
+        }],
+        messages: [],
+        artifacts: [],
+        notes: [],
+        chatConfig: { style: 'Default', length: 'Default', instructions: '' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    })
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Chat' })).toBeInTheDocument()
+    expect(screen.getByText('Shared notebook')).toBeInTheDocument()
+    expect(screen.getByText('Chat only')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Sources' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Studio' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open guest account' })).not.toBeInTheDocument()
+    expect(mocks.ensureSession).toHaveBeenCalledOnce()
+    expect(mocks.loadSharedNotebook).toHaveBeenCalledWith(shareToken)
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+
+    await user.type(screen.getByPlaceholderText(/Ask about your sources/), 'What improves public trust?')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(await screen.findByText(/Public trust improves/i)).toBeInTheDocument()
+    expect(mocks.askAi).toHaveBeenCalledWith(expect.objectContaining({
+      notebookId: 'shared-notebook',
+      sourceIds: ['shared-source'],
+      shareToken,
+    }))
+    expect(mocks.flushNotebook).not.toHaveBeenCalled()
+    expect(mocks.saveNotebook).not.toHaveBeenCalled()
+  })
+
+  it('renders a full shared notebook as an explorable read-only workspace', async () => {
+    const shareToken = '22222222-2222-4222-8222-222222222222'
+    window.history.replaceState(null, '', `/#/shared/${shareToken}`)
+    mocks.loadSharedNotebook.mockResolvedValue({
+      access: 'full',
+      notebook: {
+        id: 'shared-full-notebook',
+        title: 'Shared evidence notebook',
+        emoji: '📚',
+        sources: [{
+          id: 'shared-full-source',
+          title: 'Reliability evidence',
+          kind: 'text',
+          origin: 'Owner source',
+          content: 'Reliable service improved public trust.',
+          summary: 'A source about service reliability.',
+          topics: ['reliability'],
+          selected: true,
+          createdAt: 1,
+        }],
+        messages: [],
+        artifacts: [],
+        notes: [{ id: 'shared-note', title: 'Owner insight', body: 'Coordination matters.', createdAt: 1, locked: true }],
+        chatConfig: { style: 'Default', length: 'Default', instructions: '' },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    })
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Sources' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Chat' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Studio' })).toBeInTheDocument()
+    expect(screen.getByText('Full view')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Add sources/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Settings/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open guest account' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^Reliability evidenceTEXT$/i }))
+    expect(screen.getByText('Reliable service improved public trust.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close dialog' }))
+    await user.click(screen.getByRole('button', { name: /Owner insight/i }))
+    expect(screen.getByDisplayValue('Coordination matters.')).toBeDisabled()
   })
 })

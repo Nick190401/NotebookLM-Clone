@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:database": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/database/run.ps1",
-    "test:functions": "deno test --config supabase/functions/tests/deno.json --allow-env supabase/functions/tests/",
+    "test:functions": "deno test --config tests/functions/deno.json --allow-env tests/functions/",
     "check:functions": "deno check --config supabase/functions/notebook-ai/deno.json supabase/functions/notebook-ai/index.ts && deno check --config supabase/functions/source-import/deno.json supabase/functions/source-import/index.ts",
     "check:function-sizes": "node scripts/check-function-sizes.mjs",
     "verify:supabase": "node --env-file=.env tests/deployment/verify-supabase.mjs"
