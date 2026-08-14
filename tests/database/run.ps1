@@ -37,49 +37,14 @@ try {
   $serverStarted = $true
 
   $connection = @('-h', '127.0.0.1', '-p', [string]$port, '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1')
-  $bootstrap = @'
-create role anon nologin;
-create role authenticated nologin;
-create role service_role nologin bypassrls;
-create schema auth;
-create table auth.users (id uuid primary key);
-create function auth.uid() returns uuid language sql stable
-as 'select nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
-grant usage on schema auth to authenticated;
-grant execute on function auth.uid() to authenticated;
-'@
-  Invoke-PostgresTool 'psql.exe' ($connection + @('-c', $bootstrap))
-  Invoke-PostgresTool 'psql.exe' ($connection + @('-f', (Join-Path $workspaceRoot 'supabase\migrations\20260814002553_create_notebook_workspace.sql')))
+  Invoke-PostgresTool 'psql.exe' ($connection + @('-f', (Join-Path $PSScriptRoot 'bootstrap.sql')))
+  $migrations = @(Get-ChildItem -LiteralPath (Join-Path $workspaceRoot 'supabase\migrations') -Filter '*.sql' | Sort-Object Name)
+  if ($migrations.Count -eq 0) { throw 'No Supabase migrations were found.' }
+  foreach ($migration in $migrations) {
+    Invoke-PostgresTool 'psql.exe' ($connection + @('-f', $migration.FullName))
+  }
   Invoke-PostgresTool 'psql.exe' ($connection + @('-f', (Join-Path $PSScriptRoot 'workspace_rls_smoke.sql')))
-
-  $advisors = @'
-do $$
-begin
-  if exists (
-    select 1
-    from pg_constraint constraint_row
-    join pg_attribute attribute_row
-      on attribute_row.attrelid = constraint_row.conrelid
-      and attribute_row.attnum = any(constraint_row.conkey)
-    where constraint_row.contype = 'f'
-      and constraint_row.connamespace = 'public'::regnamespace
-      and not exists (
-        select 1 from pg_index index_row
-        where index_row.indrelid = constraint_row.conrelid
-          and attribute_row.attnum = any(index_row.indkey)
-      )
-  ) then raise exception 'A public foreign key column has no supporting index'; end if;
-  if exists (
-    select 1 from pg_class
-    where relnamespace = 'public'::regnamespace and relkind = 'r' and not relrowsecurity
-  ) then raise exception 'A public table does not have RLS enabled'; end if;
-  if exists (
-    select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosecdef
-  ) then raise exception 'A public function unexpectedly uses SECURITY DEFINER'; end if;
-end;
-$$;
-'@
-  Invoke-PostgresTool 'psql.exe' ($connection + @('-c', $advisors))
+  Invoke-PostgresTool 'psql.exe' ($connection + @('-f', (Join-Path $PSScriptRoot 'advisors.sql')))
   Write-Host "Database migration, RLS isolation, RPC grants, and schema advisor checks passed on PostgreSQL 18."
 } finally {
   if ($serverStarted) {
