@@ -21,6 +21,8 @@ interface ChatPanelProps {
   sources: Source[]
   config: ChatConfig
   busy: boolean
+  readOnly?: boolean
+  canOpenSources?: boolean
   onSend: (message: string) => void
   onAddSource: () => void
   onConfigure: () => void
@@ -36,7 +38,7 @@ const suggestions = [
   'What are the practical risks?',
 ]
 
-function renderMessage(content: string, citations: Citation[], onCitation: (citation: Citation) => void) {
+function renderMessage(content: string, citations: Citation[], onCitation: (citation: Citation) => void, canOpenSources: boolean) {
   const pieces = content.split(/(\[\d+\])/g)
   const output: ReactNode[] = []
   pieces.forEach((piece, index) => {
@@ -44,7 +46,7 @@ function renderMessage(content: string, citations: Citation[], onCitation: (cita
     if (match) {
       const citation = citations.find((item) => item.label === Number(match[1]))
       if (citation) {
-        output.push(
+        output.push(canOpenSources ? (
           <button
             className="citation-chip"
             type="button"
@@ -53,8 +55,8 @@ function renderMessage(content: string, citations: Citation[], onCitation: (cita
             onClick={() => onCitation(citation)}
           >
             {citation.label}
-          </button>,
-        )
+          </button>
+        ) : <span className="citation-chip static" key={`citation-${index}`} title={citation.excerpt}>{citation.label}</span>)
       }
     } else {
       piece.split('\n').forEach((line, lineIndex, lines) => {
@@ -71,6 +73,8 @@ export function ChatPanel({
   sources,
   config,
   busy,
+  readOnly = false,
+  canOpenSources = true,
   onSend,
   onAddSource,
   onConfigure,
@@ -106,10 +110,10 @@ export function ChatPanel({
       <header className="panel-header chat-header">
         <h2 id="chat-heading">Chat</h2>
         <div>
-          <button className="icon-button" type="button" onClick={onConfigure} aria-label="Configure chat">
+          {!readOnly && <button className="icon-button" type="button" onClick={onConfigure} aria-label="Configure chat">
             <SlidersHorizontal size={18} />
             <span className="desktop-label">{config.style}</span>
-          </button>
+          </button>}
           <button className="icon-button" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Chat options">
             <MoreVertical size={19} />
           </button>
@@ -128,9 +132,9 @@ export function ChatPanel({
         {sources.length === 0 ? (
           <div className="chat-empty">
             <span className="upload-orbit"><Upload size={25} /></span>
-            <h3>Add a source to get started</h3>
-            <p>Chat answers stay grounded in the material you choose.</p>
-            <button className="primary-button compact" type="button" onClick={onAddSource}>Upload a source</button>
+            <h3>{readOnly ? 'No sources are available' : 'Add a source to get started'}</h3>
+            <p>{readOnly ? 'The owner must share source access before this notebook can answer questions.' : 'Chat answers stay grounded in the material you choose.'}</p>
+            {!readOnly && <button className="primary-button compact" type="button" onClick={onAddSource}>Upload a source</button>}
           </div>
         ) : (
           <div className="message-stream" aria-live="polite">
@@ -151,13 +155,13 @@ export function ChatPanel({
                 {message.role === 'assistant' && <span className="assistant-avatar"><Sparkles size={15} /></span>}
                 <div className="message-content-wrap">
                   <div className="message-content">
-                    {renderMessage(message.content, message.citations, openCitation)}
+                    {renderMessage(message.content, message.citations, openCitation, canOpenSources)}
                   </div>
                   {message.role === 'assistant' && (
                     <div className="message-actions">
-                      <button type="button" onClick={() => onSave(message.id)} disabled={message.saved} title="Save to note">
+                      {!readOnly && <button type="button" onClick={() => onSave(message.id)} disabled={message.saved} title="Save to note">
                         {message.saved ? <Check size={15} /> : <Save size={15} />} {message.saved ? 'Saved' : 'Save to note'}
-                      </button>
+                      </button>}
                       <button
                         type="button"
                         title="Copy answer"
@@ -193,8 +197,8 @@ export function ChatPanel({
       </div>
 
       <div className="chat-composer-wrap">
-        <div className={`chat-composer ${sources.length === 0 ? 'disabled' : ''}`}>
-          <button className="composer-add" type="button" onClick={onAddSource} aria-label="Add a source"><MessageSquarePlus size={18} /></button>
+        <div className={`chat-composer ${sources.length === 0 ? 'disabled' : ''} ${readOnly ? 'read-only' : ''}`}>
+          {!readOnly && <button className="composer-add" type="button" onClick={onAddSource} aria-label="Add a source"><MessageSquarePlus size={18} /></button>}
           <textarea
             ref={textareaRef}
             value={prompt}

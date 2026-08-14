@@ -15,6 +15,7 @@ import { ArtifactIcon } from './ProductIcon'
 interface StudioPanelProps {
   artifacts: Artifact[]
   notes: Note[]
+  readOnly?: boolean
   sourceCount: number
   settings: AppSettings
   onGenerate: (type: ArtifactType, config: ArtifactConfig) => void
@@ -31,6 +32,7 @@ interface StudioPanelProps {
 export function StudioPanel({
   artifacts,
   notes,
+  readOnly = false,
   sourceCount,
   settings,
   onGenerate,
@@ -54,7 +56,7 @@ export function StudioPanel({
         </button>
       </header>
       <div className="panel-scroll studio-scroll">
-        <div className="studio-tool-grid">
+        {!readOnly && <div className="studio-tool-grid">
           {artifactDefinitions.map((definition) => (
             <div className={`studio-tool tint-${definition.tint}`} key={definition.type}>
               <button
@@ -72,9 +74,9 @@ export function StudioPanel({
               )}
             </div>
           ))}
-        </div>
+        </div>}
 
-        {(artifacts.length > 0 || notes.length > 0) && <div className="studio-divider" />}
+        {!readOnly && (artifacts.length > 0 || notes.length > 0) && <div className="studio-divider" />}
 
         {artifacts.length > 0 && (
           <section className="studio-section" aria-labelledby="outputs-title">
@@ -90,8 +92,8 @@ export function StudioPanel({
                       </span>
                       <span><strong>{artifact.title}</strong><small>{artifact.status === 'generating' ? 'Generating with Groq…' : artifact.status === 'error' ? artifact.error : definition?.shortLabel}</small></span>
                     </button>
-                    <button className="icon-button" type="button" onClick={() => setMenuFor(menuFor === artifact.id ? null : artifact.id)} aria-label={`More options for ${artifact.title}`}><MoreVertical size={16} /></button>
-                    {menuFor === artifact.id && (
+                    {!readOnly && <button className="icon-button" type="button" onClick={() => setMenuFor(menuFor === artifact.id ? null : artifact.id)} aria-label={`More options for ${artifact.title}`}><MoreVertical size={16} /></button>}
+                    {!readOnly && menuFor === artifact.id && (
                       <div className="context-menu studio-context-menu">
                         <button className="danger-menu-item" type="button" onClick={() => { onDeleteArtifact(artifact.id); setMenuFor(null) }}><Trash2 size={15} /> Delete output</button>
                       </div>
@@ -108,8 +110,8 @@ export function StudioPanel({
           {notes.length === 0 ? (
             <div className="studio-empty">
               <FilePlus2 size={28} />
-              <strong>Studio output will be saved here</strong>
-              <p>Generate a guide, save a chat answer, or write your own note.</p>
+              <strong>{readOnly ? 'No shared notes yet' : 'Studio output will be saved here'}</strong>
+              <p>{readOnly ? 'The notebook owner has not shared any notes.' : 'Generate a guide, save a chat answer, or write your own note.'}</p>
             </div>
           ) : (
             <div className="note-list">
@@ -119,8 +121,8 @@ export function StudioPanel({
                     <span><PenLine size={16} /></span>
                     <span><strong>{note.title}</strong><small>{note.body.slice(0, 75)}{note.body.length > 75 ? '…' : ''}</small></span>
                   </button>
-                  <button className="icon-button" type="button" onClick={() => setMenuFor(menuFor === note.id ? null : note.id)} aria-label={`More options for ${note.title}`}><MoreVertical size={16} /></button>
-                  {menuFor === note.id && (
+                  {!readOnly && <button className="icon-button" type="button" onClick={() => setMenuFor(menuFor === note.id ? null : note.id)} aria-label={`More options for ${note.title}`}><MoreVertical size={16} /></button>}
+                  {!readOnly && menuFor === note.id && (
                     <div className="context-menu studio-context-menu">
                       <button className="danger-menu-item" type="button" onClick={() => { onDeleteNote(note.id); setMenuFor(null) }}><Trash2 size={15} /> Delete note</button>
                     </div>
@@ -131,9 +133,9 @@ export function StudioPanel({
           )}
         </section>
       </div>
-      <div className="studio-add-note-wrap">
+      {!readOnly && <div className="studio-add-note-wrap">
         <button className="dark-button" type="button" onClick={onAddNote}><Plus size={18} /> Add note</button>
-      </div>
+      </div>}
     </section>
   )
 }

@@ -138,6 +138,18 @@ export interface ChatConfig {
   instructions: string
 }
 
+export type NotebookShareAccess = 'private' | 'full' | 'chat'
+
+export interface NotebookShareDetails {
+  access: NotebookShareAccess
+  token: string | null
+}
+
+export interface SharedNotebook {
+  access: Exclude<NotebookShareAccess, 'private'>
+  notebook: Notebook
+}
+
 export interface Notebook {
   id: string
   title: string

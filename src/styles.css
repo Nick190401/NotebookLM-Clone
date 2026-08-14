@@ -675,6 +675,9 @@ select {
 
 .notebook-title-button:hover { background: var(--surface-strong); }
 .notebook-title-input { border-color: var(--blue); }
+.notebook-title-button.read-only { cursor: default; }
+.notebook-title-button.read-only:hover { background: transparent; }
+.notebook-emoji-button.read-only { cursor: default; }
 
 .saved-state {
   display: inline-flex;
@@ -683,6 +686,23 @@ select {
   color: var(--text-faint);
   font-size: 11px;
 }
+
+.shared-access-chip {
+  display: inline-flex;
+  min-height: 42px;
+  padding: 6px 12px;
+  align-items: center;
+  gap: 8px;
+  color: #176a4b;
+  background: #effaf5;
+  border: 1px solid #b7dfcc;
+  border-radius: 999px;
+}
+
+.shared-access-chip > span { display: flex; gap: 1px; flex-direction: column; }
+.shared-access-chip strong { font-size: 11px; line-height: 1.1; }
+.shared-access-chip small { font-size: 9px; line-height: 1.1; opacity: .75; }
+[data-theme='dark'] .shared-access-chip { color: #91ddbd; background: #173b30; border-color: #285d4a; }
 
 .workspace-shell {
   position: relative;
@@ -895,6 +915,8 @@ select {
   border-radius: 9px;
 }
 
+.source-row.read-only { grid-template-columns: minmax(0, 1fr) auto; }
+
 .source-row:hover { background: var(--surface-soft); }
 
 .source-open-button {
@@ -1043,6 +1065,8 @@ select {
 }
 
 .citation-chip:hover { color: white; background: var(--blue-strong); }
+.citation-chip.static { cursor: help; }
+.citation-chip.static:hover { color: var(--blue-strong); background: var(--blue-soft); }
 .message-actions { display: flex; margin-top: 8px; gap: 2px; opacity: .72; }
 .message-actions button { display: inline-flex; min-height: 31px; padding: 0 7px; align-items: center; gap: 5px; color: var(--text-muted); font-size: 10px; background: transparent; border: 0; border-radius: 7px; }
 .message-actions button:hover { color: var(--text); background: var(--surface-soft); }
@@ -1081,6 +1105,7 @@ select {
 }
 
 .chat-composer:focus-within { border-color: color-mix(in srgb, var(--blue) 70%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 13%, transparent); }
+.chat-composer.read-only { grid-template-columns: minmax(0, 1fr) auto; }
 .chat-composer.disabled { background: var(--surface-soft); opacity: .7; }
 .composer-add { display: grid; width: 36px; height: 38px; place-items: center; color: var(--text-muted); background: transparent; border: 0; border-radius: 9px; }
 .composer-add:hover { background: var(--surface-soft); }
@@ -1208,6 +1233,54 @@ select {
 .modal-header p { margin: 5px 0 0; color: var(--text-muted); font-size: 12px; }
 .modal-actions { display: flex; padding-top: 16px; align-items: center; justify-content: flex-end; gap: 9px; }
 .form-error { margin: 12px 20px 18px; padding: 10px 12px; color: var(--danger); font-size: 12px; background: color-mix(in srgb, var(--danger) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line)); border-radius: 9px; }
+
+.share-dialog { width: min(610px, 100%); }
+.share-loading { display: flex; min-height: 310px; align-items: center; justify-content: center; gap: 9px; color: var(--text-muted); font-size: 13px; }
+.share-visibility-map {
+  position: relative;
+  display: grid;
+  min-height: 92px;
+  margin: 22px 24px 14px;
+  padding: 12px;
+  grid-template-columns: .82fr 1.3fr .92fr;
+  align-items: stretch;
+  gap: 8px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+}
+.share-visibility-map span { display: grid; z-index: 1; place-items: center; color: var(--text-faint); font-size: 10px; font-weight: 700; background: color-mix(in srgb, var(--surface) 58%, transparent); border: 1px dashed var(--line-strong); border-radius: 9px; transition: 150ms ease; }
+.share-visibility-map span.active { color: var(--blue-strong); background: var(--blue-soft); border-style: solid; border-color: color-mix(in srgb, var(--blue) 48%, var(--line)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 8%, transparent); }
+.share-visibility-map span.active.chat { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 16%, transparent), 0 3px 10px color-mix(in srgb, var(--blue) 12%, transparent); }
+.share-visibility-map i { position: absolute; z-index: 2; top: -10px; right: -8px; display: grid; width: 31px; height: 31px; place-items: center; color: white; background: #24815e; border: 3px solid var(--surface); border-radius: 50%; box-shadow: 0 4px 12px rgba(29, 82, 64, .18); }
+.share-visibility-map i.private { color: var(--text-muted); background: var(--surface-strong); }
+
+.share-options { display: grid; margin: 0 24px; gap: 7px; }
+.share-options > button { display: grid; min-height: 68px; padding: 10px 12px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 11px; text-align: left; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease; }
+.share-options > button:hover { background: var(--surface-soft); border-color: var(--line-strong); }
+.share-options > button.selected { background: var(--blue-soft); border-color: color-mix(in srgb, var(--blue) 52%, var(--line)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 7%, transparent); }
+.share-option-icon { display: grid; width: 38px; height: 38px; place-items: center; color: var(--text-muted); background: var(--surface-soft); border-radius: 10px; }
+.share-options .selected .share-option-icon { color: var(--blue-strong); background: var(--surface); }
+.share-options > button > span:nth-child(2) { display: flex; min-width: 0; gap: 3px; flex-direction: column; }
+.share-options strong { font-size: 13px; }
+.share-options small { color: var(--text-muted); font-size: 10.5px; line-height: 1.35; }
+
+.share-link-section { margin: 16px 24px 0; padding: 13px; background: color-mix(in srgb, #42a77d 8%, var(--surface)); border: 1px solid color-mix(in srgb, #42a77d 34%, var(--line)); border-radius: 13px; }
+.share-link-section > div:first-child { display: flex; align-items: center; gap: 9px; color: #176a4b; }
+.share-link-section > div:first-child > span { display: flex; gap: 2px; flex-direction: column; }
+.share-link-section strong { font-size: 11px; }
+.share-link-section small { color: var(--text-muted); font-size: 9.5px; }
+.share-link-field { display: grid; margin-top: 10px; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.share-link-field input { min-width: 0; height: 40px; padding: 0 11px; color: var(--text-muted); font-size: 10px; border-radius: 9px; }
+.share-link-field .secondary-button { min-height: 40px; padding: 0 13px; border-radius: 9px; font-size: 11px; }
+.share-revoke-warning { display: flex; min-height: 50px; margin: 14px 24px 0; padding: 9px 12px; align-items: center; gap: 9px; color: #845819; background: #fff8e8; border: 1px solid #edd29d; border-radius: 11px; }
+.share-revoke-warning > span { display: flex; gap: 2px; flex-direction: column; }
+.share-revoke-warning strong { font-size: 11px; }
+.share-revoke-warning small { color: #8b744c; font-size: 9.5px; }
+[data-theme='dark'] .share-link-section > div:first-child { color: #91ddbd; }
+[data-theme='dark'] .share-revoke-warning { color: #f4cf7b; background: #382e18; border-color: #674f1e; }
+[data-theme='dark'] .share-revoke-warning small { color: #d7bc80; }
+.share-actions { margin: 0 24px; padding-bottom: 22px; }
 
 .source-tabs {
   display: flex;
@@ -1644,6 +1717,7 @@ label > span,
   .mobile-workspace-tabs button.active { color: var(--blue-strong); }
   .mobile-workspace-tabs button.active::after { position: absolute; right: 18%; bottom: -1px; left: 18%; height: 2px; content: ''; background: var(--blue-strong); border-radius: 2px; }
   .workspace-shell { height: calc(100vh - var(--topbar-height) - 48px); padding: 7px; }
+  .workspace-shell.chat-only { height: calc(100vh - var(--topbar-height)); }
   .workspace-grid { display: block; }
   .workspace-grid > div { height: 100%; }
   .mobile-hidden-panel { display: none !important; }
@@ -1661,6 +1735,11 @@ label > span,
 
   .modal-backdrop { padding: 0; align-items: end; }
   .modal { width: 100%; max-height: min(92vh, 800px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 20px 20px 0 0; }
+  .share-visibility-map,
+  .share-options { margin-right: 16px; margin-left: 16px; }
+  .share-link-section,
+  .share-revoke-warning { margin-right: 16px; margin-left: 16px; }
+  .share-actions { margin-right: 16px; margin-left: 16px; }
   .source-guide-grid { grid-template-columns: 1fr; }
   .source-guide-sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
   .source-content-view { max-height: 350px; }
@@ -1697,14 +1776,19 @@ label > span,
   .notebook-emoji-button { min-width: 36px; padding: 0 5px; }
   .notebook-title-button,
   .notebook-title-input { max-width: calc(100vw - 206px); font-size: 14px; }
-  .workspace-actions .outline-button:nth-child(2) { display: none; }
+  .workspace-actions .settings-trigger-button,
+  .workspace-actions .ai-status-chip { display: none; }
   .workspace-actions .outline-button { min-width: 36px; padding: 0 7px; }
+  .workspace-actions .share-trigger-button span { display: none; }
+  .shared-access-chip { min-height: 36px; padding: 5px 9px; }
+  .shared-access-chip > span { display: none; }
   .suggestion-grid { grid-template-columns: 1fr; }
   .chat-message.user .message-content-wrap { max-width: 88%; }
   .message-actions { flex-wrap: wrap; }
   .message-actions button { min-height: 35px; }
   .composer-meta span { display: none; }
   .chat-composer { grid-template-columns: auto minmax(0,1fr) 35px; }
+  .chat-composer.read-only { grid-template-columns: minmax(0,1fr) 35px; }
   .studio-scroll { padding: 11px; }
   .studio-tool-grid { gap: 7px; }
   .studio-tool-main { padding: 11px; }
@@ -1723,6 +1807,8 @@ label > span,
   .note-editor-fields { padding: 20px; }
   .note-actions { grid-template-columns: 1fr 1fr !important; }
   .note-actions > span { display: none; }
+  .share-link-field { grid-template-columns: 1fr; }
+  .share-link-field .secondary-button { width: 100%; }
   .settings-section,
   .settings-danger { margin-right: 17px; margin-left: 17px; }
   .artifact-viewer-toolbar { align-items: flex-start; flex-direction: column; }
