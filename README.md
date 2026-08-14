@@ -21,10 +21,11 @@ React/Vite browser
   ├─ Supabase anonymous Auth session
   ├─ Postgres RPCs + RLS for notebook persistence
   ├─ notebook-ai Edge Function ── Groq chat, discovery, speech
-  └─ source-import Edge Function ── extraction, SSRF checks, OCR/transcription
+  ├─ source-import Edge Function ── extraction, SSRF checks, OCR/transcription
+  └─ send-email Edge Function ── Send Email Auth hook, branded templates, Resend delivery
 ```
 
-The Groq key exists only as an Edge Function secret. Every table has Row Level Security and every policy scopes rows to `(select auth.uid())`. The browser sends only notebook/source IDs for chat and artifact generation; the Edge Function reloads those sources through an authenticated RPC that forwards the caller JWT and therefore remains subject to RLS.
+The Groq and Resend keys exist only as Edge Function secrets. Every table has Row Level Security and every policy scopes rows to `(select auth.uid())`. The browser sends only notebook/source IDs for chat and artifact generation; the Edge Function reloads those sources through an authenticated RPC that forwards the caller JWT and therefore remains subject to RLS.
 
 Public notebooks do not weaken those owner policies. A UUID share token is checked by narrow RPCs: full access returns a read-only notebook without the owner's chat history, while chat-only access redacts source text and Studio content from the browser. Grounded shared chat loads source text server-side through a separate token-bound RPC. Turning sharing off invalidates the link, and turning it on again creates a new token.
 
@@ -36,6 +37,8 @@ The app opens immediately with an anonymous Supabase user. Choosing **Create acc
 
 Hosted Auth configuration must keep anonymous sign-ins and manual identity linking enabled. Before deploying the frontend, add its exact production and preview URLs to `additional_redirect_urls`; confirmation and recovery links return to the application with an `account` action parameter.
 
+Supabase Auth never sends mail itself. The [Send Email hook](https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook) posts every account and security event to the `send-email` Edge Function, which verifies the Standard Webhooks signature, renders the NotebookLM-styled template for that action, and hands the message to Resend. Confirmation, invite, magic-link, recovery, reauthentication, email-change, and the four security notifications are covered; a secure email change sends the current and the new address their own token pair, and a guest upgrade only mails the new address. Resend outages are answered with `503` and `Retry-After` so Auth retries instead of losing the email.
+
 ## Supabase setup
 
 Prerequisites: Node.js 22+, Deno 2+, Supabase CLI, and a Supabase project.
@@ -46,32 +49,47 @@ Prerequisites: Node.js 22+, Deno 2+, Supabase CLI, and a Supabase project.
    supabase.exe link --project-ref YOUR_PROJECT_REF
    ```
 
-2. Push the hosted Auth configuration, including anonymous sign-ins, manual email linking, redirect URLs, the 8-character password minimum, and the branded account/security email templates:
+2. Verify a sending domain in Resend, create a Resend API key, and open **Authentication > Hooks > Send Email** in the Supabase dashboard to generate the hook secret. Store all three as Function secrets:
+
+   ```powershell
+   supabase.exe secrets set RESEND_API_KEY=re_xxx "RESEND_FROM_ADDRESS=NotebookLM Clone <auth@your-domain>" "SEND_EMAIL_HOOK_SECRET=v1,whsec_xxx"
+   ```
+
+   `SEND_EMAIL_HOOK_SECRET` must hold the same value on both sides: Auth signs the payload with it and the Function verifies the signature with it.
+
+3. Deploy the Edge Functions:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/configure-supabase-ai.ps1
+   supabase.exe functions deploy notebook-ai source-import send-email --use-api
+   ```
+
+   The script prompts for the Groq key securely and never writes it to a repository file or shell history. Hosted Supabase Secrets are the source of truth for Function configuration.
+
+4. Push the hosted Auth configuration, including anonymous sign-ins, manual email linking, redirect URLs, the 8-character password minimum, and the Send Email hook. The hook URI differs per environment, so `config push` reads it from the root `.env`:
 
    ```powershell
    supabase.exe config push --yes
    ```
 
-   The templates live in `supabase/templates/` and are checked with `npm run verify:emails`. Supabase projects created after June 3, 2026 cannot customize templates on the Free plan while using Supabase's default mail provider. Configure custom SMTP or upgrade the project before pushing this email configuration; do not remove the templates to hide that production requirement.
+   Because the hook replaces Supabase's own mail provider, the Free-plan template restriction for projects created after June 3, 2026 no longer applies, and no SMTP server has to be configured.
 
-3. Apply the migration:
+5. Apply the migration:
 
    ```powershell
    supabase.exe db push
    ```
 
-4. Store the Groq key and all model selections directly as Supabase Secrets, then deploy:
+6. Create root `.env` from `.env.example`. Besides the public project URL and publishable key required by Vite, it holds the two values the Supabase CLI substitutes into `config.toml`. Never put a service-role key, Groq key, or Resend key in a `VITE_` variable.
 
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/configure-supabase-ai.ps1
-   supabase.exe functions deploy notebook-ai source-import --use-api
+   ```ini
+   SEND_EMAIL_HOOK_URI=https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-email
+   SEND_EMAIL_HOOK_SECRET=v1,whsec_xxx
    ```
 
-   The script prompts securely and never writes the key to a repository file or shell history. Hosted Supabase Secrets are the source of truth for Function configuration.
+   For the local stack, point `SEND_EMAIL_HOOK_URI` at `http://host.docker.internal:54321/functions/v1/send-email` and put `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, and `SEND_EMAIL_HOOK_SECRET` in `supabase/functions/.env`.
 
-5. Create root `.env` from `.env.example`. It contains only the public project URL and publishable key required by Vite. Never put a service-role key or Groq key in a `VITE_` variable.
-
-6. Install and run:
+7. Install and run:
 
    ```powershell
    npm install

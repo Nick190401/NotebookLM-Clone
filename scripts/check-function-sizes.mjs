@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 const functions = [
   ['notebook-ai', 'supabase/functions/notebook-ai/deno.json', 'supabase/functions/notebook-ai/index.ts'],
   ['source-import', 'supabase/functions/source-import/deno.json', 'supabase/functions/source-import/index.ts'],
+  ['send-email', 'supabase/functions/send-email/deno.json', 'supabase/functions/send-email/index.ts'],
 ]
 const limitInBytes = 5 * 1024 * 1024
 
