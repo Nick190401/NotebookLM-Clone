@@ -54,7 +54,14 @@ Deno.test('verification emails link to the Supabase verify endpoint with the tok
   const expected = 'https://project.supabase.co/auth/v1/verify?token=hash-current&type=recovery&redirect_to=https%3A%2F%2Fnotebooklm.example%2F%3Faccount%3Dconfirmed'
   assert(message.html.includes(`href="${expected.replace(/&/g, '&amp;')}"`), 'recovery link is missing or malformed')
   assert(message.text.includes(expected), 'plain-text recovery link is missing')
-  assert(message.html.includes('12345678'), 'the one-time code was not offered as a fallback')
+})
+
+Deno.test('only reauthentication shows a one-time code, because nothing else can be typed into the app', () => {
+  for (const email_action_type of actionTypes) {
+    const [message] = buildMessages(payload({ email_action_type }), SUPABASE_URL)
+    const showsCode = message.html.includes('12345678')
+    assert(showsCode === (email_action_type === 'reauthentication'), `${email_action_type} ${showsCode ? 'shows' : 'hides'} a code it should not`)
+  }
 })
 
 Deno.test('notification emails point at the site instead of a verification link', () => {
@@ -71,8 +78,8 @@ Deno.test('secure email change sends both addresses the token pair that belongs 
   assert(messages.length === 2, 'secure email change did not produce two messages')
   const [current, next] = messages
   assert(current.to === 'reader@example.com' && next.to === 'moved@example.com', 'email change recipients are wrong')
-  assert(current.html.includes('token=hash-new') && current.html.includes('12345678'), 'current address received the wrong token pair')
-  assert(next.html.includes('token=hash-current') && next.html.includes('87654321'), 'new address received the wrong token pair')
+  assert(current.html.includes('token=hash-new'), 'current address received the wrong token hash')
+  assert(next.html.includes('token=hash-current'), 'new address received the wrong token hash')
 })
 
 Deno.test('an anonymous account linking its first email receives a single confirmation', () => {

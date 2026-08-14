@@ -42,7 +42,7 @@ function verifyUrl(supabaseUrl: string, tokenHash: string, type: string, redirec
   return `${supabaseUrl.replace(/\/$/, '')}/auth/v1/verify?${params}`
 }
 
-function emailChangeContent(recipient: 'current' | 'new', newEmail: string, url: string, code: string): EmailContent {
+function emailChangeContent(recipient: 'current' | 'new', newEmail: string, url: string): EmailContent {
   return {
     subject: `Connect your email to ${BRAND}`,
     heading: recipient === 'current' ? 'Approve this email change' : 'Confirm your new email',
@@ -50,7 +50,6 @@ function emailChangeContent(recipient: 'current' | 'new', newEmail: string, url:
       ? [`Your ${BRAND} account is being moved to ${newEmail}. Approve the change from this address to continue.`, 'The change only completes once both addresses confirm it.']
       : [`Confirm ${newEmail} to use it for ${BRAND}. Your notebooks, sources, and Studio artifacts stay on the same account.`],
     action: { label: 'Confirm email change', url },
-    code,
     footer: recipient === 'current' ? SECURITY_NOTE : IGNORE_NOTE,
   }
 }
@@ -64,7 +63,6 @@ function contentFor(payload: SendEmailPayload, verify: (tokenHash: string) => st
         heading: 'Confirm your email',
         lines: [`Confirm this address to finish setting up your ${BRAND} account. Everything in your current workspace stays with you.`],
         action: { label: 'Confirm email', url: verify(data.token_hash) },
-        code: data.token,
         footer: IGNORE_NOTE,
       }
     case 'invite':
@@ -81,7 +79,6 @@ function contentFor(payload: SendEmailPayload, verify: (tokenHash: string) => st
         heading: 'Sign in to NotebookLM Clone',
         lines: ['Use this link to sign in. It works once and expires shortly.'],
         action: { label: 'Sign in', url: verify(data.token_hash) },
-        code: data.token,
         footer: IGNORE_NOTE,
       }
     case 'recovery':
@@ -90,7 +87,6 @@ function contentFor(payload: SendEmailPayload, verify: (tokenHash: string) => st
         heading: 'Reset your password',
         lines: [`Choose a new password for ${user.email ?? 'your account'}. The link expires shortly and can be used once.`],
         action: { label: 'Choose a new password', url: verify(data.token_hash) },
-        code: data.token,
         footer: IGNORE_NOTE,
       }
     case 'reauthentication':
@@ -139,7 +135,7 @@ function contentFor(payload: SendEmailPayload, verify: (tokenHash: string) => st
         heading: 'Confirm this request',
         lines: ['Confirm the request you just started in NotebookLM Clone.'],
         action: data.token_hash ? { label: 'Confirm request', url: verify(data.token_hash) } : undefined,
-        code: data.token,
+        code: data.token_hash ? undefined : data.token,
         footer: IGNORE_NOTE,
       }
   }
@@ -154,9 +150,9 @@ export function buildMessages(payload: SendEmailPayload, supabaseUrl: string): E
     if (!newEmail) throw new HttpError('The email change hook payload has no address.', 'EMAIL_RECIPIENT_MISSING', 500)
     const messages: EmailMessage[] = []
     if (user.email && data.token_hash_new) {
-      messages.push(toMessage(user.email, emailChangeContent('current', newEmail, verify(data.token_hash_new), data.token)))
+      messages.push(toMessage(user.email, emailChangeContent('current', newEmail, verify(data.token_hash_new))))
     }
-    messages.push(toMessage(newEmail, emailChangeContent('new', newEmail, verify(data.token_hash), data.token_new || data.token)))
+    messages.push(toMessage(newEmail, emailChangeContent('new', newEmail, verify(data.token_hash))))
     return messages
   }
 
@@ -185,8 +181,7 @@ function renderHtml(content: EmailContent) {
     ? row('24px 32px 0', `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#3f57dc;border-radius:999px;"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">${escapeHtml(content.action.label)}</a></td></tr></table>`)
     : ''
   const code = content.code
-    ? (content.action ? row('20px 32px 0', '<p style="margin:0;font-size:13px;color:#6d7178;">Or enter this code:</p>') : '')
-      + row('10px 32px 0', `<div style="padding:14px 18px;background:#eaedff;border-radius:12px;font-size:22px;font-weight:700;letter-spacing:4px;color:#3f57dc;text-align:center;">${escapeHtml(content.code)}</div>`)
+    ? row('20px 32px 0', `<div style="padding:14px 18px;background:#eaedff;border-radius:12px;font-size:22px;font-weight:700;letter-spacing:4px;color:#3f57dc;text-align:center;">${escapeHtml(content.code)}</div>`)
     : ''
   const fallback = content.action && !content.action.plain
     ? row('20px 32px 0', `<p style="margin:0;font-size:12px;line-height:1.6;color:#92969d;word-break:break-all;">Or paste this link into your browser:<br><span style="color:#5269e8;">${escapeHtml(content.action.url)}</span></p>`)
