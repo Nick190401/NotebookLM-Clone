@@ -1,4 +1,4 @@
-import { authenticatedContext, HttpError, supabaseRpc } from '../../_shared/http.ts'
+import { authenticatedContext, HttpError, supabaseRpc } from '../../../supabase/functions/_shared/http.ts'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)

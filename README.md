@@ -89,12 +89,9 @@ Test code is kept out of production modules:
 ```text
 tests/
   frontend/       # Vitest component and repository tests
+  functions/      # Deno unit and integration tests for Edge Functions
   database/       # Disposable PostgreSQL migration and RLS smoke tests
   deployment/     # Hosted Supabase end-to-end verification
-supabase/functions/tests/
-  _shared/        # Shared Edge Function unit tests
-  integration/    # Cross-function request tests
-  source-import/  # Import parsing tests
 ```
 
 `verify:supabase` creates two anonymous sessions, writes a temporary notebook and settings, proves save/load and cross-user RLS isolation, invokes a grounded Groq chat and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.

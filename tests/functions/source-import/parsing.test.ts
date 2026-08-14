@@ -1,5 +1,5 @@
 import { strToU8, zipSync } from 'npm:fflate@0.8.2'
-import { extractDocx, extractHtml } from '../../source-import/handler.ts'
+import { extractDocx, extractHtml } from '../../../supabase/functions/source-import/handler.ts'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)

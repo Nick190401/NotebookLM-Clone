@@ -1,5 +1,5 @@
-import { handleNotebookAiRequest } from '../../notebook-ai/handler.ts'
-import { handleSourceImportRequest } from '../../source-import/handler.ts'
+import { handleNotebookAiRequest } from '../../../supabase/functions/notebook-ai/handler.ts'
+import { handleSourceImportRequest } from '../../../supabase/functions/source-import/handler.ts'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
