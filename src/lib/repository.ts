@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { z } from 'zod'
 import type { AppData, AppSettings, Notebook, NotebookShareAccess, NotebookShareDetails, SharedNotebook } from '../types'
 import { requireSupabase } from './supabase'
@@ -56,6 +56,16 @@ export class RepositoryError extends Error {
   }
 }
 
+export interface AccountIdentity {
+  id: string
+  email: string | null
+  isAnonymous: boolean
+}
+
+function accountIdentity(user: User): AccountIdentity {
+  return { id: user.id, email: user.email ?? null, isAnonymous: Boolean(user.is_anonymous) }
+}
+
 function databaseError(message: string, cause: unknown) {
   return new RepositoryError(message, cause)
 }
@@ -82,10 +92,42 @@ export function createRepository(client: SupabaseClient) {
   async function ensureSession() {
     const { data: current, error: sessionError } = await client.auth.getSession()
     if (sessionError) throw databaseError('The Supabase session could not be restored.', sessionError)
-    if (current.session?.user) return current.session.user
+    if (current.session?.user) return accountIdentity(current.session.user)
     const { data, error } = await client.auth.signInAnonymously()
     if (error || !data.user) throw databaseError('Anonymous Supabase sign-in failed. Confirm that anonymous sign-ins are enabled.', error)
-    return data.user
+    return accountIdentity(data.user)
+  }
+
+  async function beginAccountUpgrade(email: string, redirectTo: string) {
+    const { data, error } = await client.auth.updateUser({ email }, { emailRedirectTo: redirectTo })
+    if (error || !data.user) throw databaseError('The account confirmation email could not be sent.', error)
+    return accountIdentity(data.user)
+  }
+
+  async function signIn(email: string, password: string) {
+    await Promise.all([...pending.values(), settingsPending])
+    const { data, error } = await client.auth.signInWithPassword({ email, password })
+    if (error || !data.user) throw databaseError('Sign-in failed. Check your email and password.', error)
+    persistedSourceContent.clear()
+    return accountIdentity(data.user)
+  }
+
+  async function setPassword(password: string) {
+    const { data, error } = await client.auth.updateUser({ password })
+    if (error || !data.user) throw databaseError('The password could not be updated.', error)
+    return accountIdentity(data.user)
+  }
+
+  async function sendPasswordReset(email: string, redirectTo: string) {
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo })
+    if (error) throw databaseError('The password reset email could not be sent.', error)
+  }
+
+  async function signOut() {
+    await Promise.all([...pending.values(), settingsPending])
+    const { error } = await client.auth.signOut({ scope: 'local' })
+    if (error) throw databaseError('The account could not be signed out.', error)
+    persistedSourceContent.clear()
   }
 
   async function loadWorkspace(): Promise<AppData> {
@@ -175,7 +217,8 @@ export function createRepository(client: SupabaseClient) {
   }
 
   return {
-    ensureSession, loadWorkspace, loadSharedNotebook, getNotebookSharing, setNotebookSharing,
+    ensureSession, beginAccountUpgrade, signIn, setPassword, sendPasswordReset, signOut,
+    loadWorkspace, loadSharedNotebook, getNotebookSharing, setNotebookSharing,
     saveNotebook, flushNotebook, saveSettings, deleteNotebook, clearWorkspace,
   }
 }
@@ -184,6 +227,11 @@ export type NotebookRepository = ReturnType<typeof createRepository>
 
 export const repository = {
   ensureSession: (...args: Parameters<NotebookRepository['ensureSession']>) => createRepositorySingleton().ensureSession(...args),
+  beginAccountUpgrade: (...args: Parameters<NotebookRepository['beginAccountUpgrade']>) => createRepositorySingleton().beginAccountUpgrade(...args),
+  signIn: (...args: Parameters<NotebookRepository['signIn']>) => createRepositorySingleton().signIn(...args),
+  setPassword: (...args: Parameters<NotebookRepository['setPassword']>) => createRepositorySingleton().setPassword(...args),
+  sendPasswordReset: (...args: Parameters<NotebookRepository['sendPasswordReset']>) => createRepositorySingleton().sendPasswordReset(...args),
+  signOut: (...args: Parameters<NotebookRepository['signOut']>) => createRepositorySingleton().signOut(...args),
   loadWorkspace: (...args: Parameters<NotebookRepository['loadWorkspace']>) => createRepositorySingleton().loadWorkspace(...args),
   loadSharedNotebook: (...args: Parameters<NotebookRepository['loadSharedNotebook']>) => createRepositorySingleton().loadSharedNotebook(...args),
   getNotebookSharing: (...args: Parameters<NotebookRepository['getNotebookSharing']>) => createRepositorySingleton().getNotebookSharing(...args),

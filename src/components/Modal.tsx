@@ -13,23 +13,27 @@ interface ModalProps {
 
 export function Modal({ open, title, description, onClose, children, className = '', wide = false }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
     const previous = document.activeElement as HTMLElement | null
-    const frame = requestAnimationFrame(() => dialogRef.current?.focus())
+    dialogRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onCloseRef.current()
     }
     document.addEventListener('keydown', onKeyDown)
     document.body.classList.add('modal-open')
     return () => {
-      cancelAnimationFrame(frame)
       document.removeEventListener('keydown', onKeyDown)
       document.body.classList.remove('modal-open')
       previous?.focus()
     }
-  }, [onClose, open])
+  }, [open])
 
   if (!open) return null
 

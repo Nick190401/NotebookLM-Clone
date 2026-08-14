@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { MoreVertical, Plus, Settings, Trash2 } from 'lucide-react'
+import type { AccountIdentity } from '../lib/repository'
 import type { Notebook } from '../types'
+import { AccountButton } from './AccountButton'
 import { Brand } from './Brand'
 
 interface HomeScreenProps {
@@ -9,6 +11,8 @@ interface HomeScreenProps {
   onOpen: (id: string) => void
   onDelete: (id: string) => void
   onOpenSettings: () => void
+  account: AccountIdentity
+  onOpenAccount: () => void
 }
 
 function relativeTime(timestamp: number) {
@@ -20,7 +24,7 @@ function relativeTime(timestamp: number) {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-export function HomeScreen({ notebooks, onCreate, onOpen, onDelete, onOpenSettings }: HomeScreenProps) {
+export function HomeScreen({ notebooks, onCreate, onOpen, onDelete, onOpenSettings, account, onOpenAccount }: HomeScreenProps) {
   const [menuFor, setMenuFor] = useState<string | null>(null)
 
   return (
@@ -32,9 +36,7 @@ export function HomeScreen({ notebooks, onCreate, onOpen, onDelete, onOpenSettin
             <Settings size={17} />
             Settings
           </button>
-          <button className="avatar-button" type="button" aria-label="User profile">
-            N
-          </button>
+          <AccountButton account={account} onClick={onOpenAccount} />
         </div>
       </header>
 
