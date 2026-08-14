@@ -6,6 +6,7 @@ export const chatRequestSchema = z.object({
   action: z.literal('chat'),
   notebookId: z.string().min(1).max(120),
   sourceIds: z.array(z.string().min(1).max(120)).min(1).max(100),
+  shareToken: z.string().uuid().optional(),
   message: z.string().trim().min(1).max(4_000),
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),

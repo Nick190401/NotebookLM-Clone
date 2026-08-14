@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import type { AppData, AppSettings, Notebook } from '../types'
+import type { AppData, AppSettings, Notebook, NotebookShareAccess, NotebookShareDetails, SharedNotebook } from '../types'
 import { requireSupabase } from './supabase'
 
 const settingsSchema = z.object({
@@ -41,6 +41,14 @@ const notebookSchema = z.object({
   createdAt: z.number(), updatedAt: z.number(),
 })
 const appDataSchema = z.object({ notebooks: z.array(notebookSchema), settings: settingsSchema })
+const shareDetailsSchema = z.object({
+  access: z.enum(['private', 'full', 'chat']),
+  token: z.string().uuid().nullable(),
+})
+const sharedNotebookSchema = z.object({
+  access: z.enum(['full', 'chat']),
+  notebook: notebookSchema,
+})
 
 export class RepositoryError extends Error {
   constructor(message: string, readonly cause?: unknown) {
@@ -88,6 +96,34 @@ export function createRepository(client: SupabaseClient) {
     const workspace = parsed.data as AppData
     workspace.notebooks.forEach(rememberSources)
     return workspace
+  }
+
+  async function loadSharedNotebook(token: string): Promise<SharedNotebook> {
+    const { data, error } = await client.rpc('load_shared_notebook', { requested_share_token: token })
+    if (error) throw databaseError('The shared notebook could not be loaded from Supabase.', error)
+    if (data === null) throw new RepositoryError('This shared notebook link is unavailable or has been revoked.')
+    const parsed = sharedNotebookSchema.safeParse(data)
+    if (!parsed.success) throw databaseError('Supabase returned an invalid shared notebook snapshot.', parsed.error)
+    return parsed.data as SharedNotebook
+  }
+
+  async function getNotebookSharing(id: string): Promise<NotebookShareDetails> {
+    const { data, error } = await client.from('notebooks').select('sharing_access, share_token').eq('id', id).single()
+    if (error) throw databaseError('The notebook sharing settings could not be loaded.', error)
+    const parsed = shareDetailsSchema.safeParse({ access: data?.sharing_access, token: data?.share_token })
+    if (!parsed.success) throw databaseError('Supabase returned invalid notebook sharing settings.', parsed.error)
+    return parsed.data as NotebookShareDetails
+  }
+
+  async function setNotebookSharing(id: string, access: NotebookShareAccess): Promise<NotebookShareDetails> {
+    const { data, error } = await client.rpc('set_notebook_sharing', {
+      requested_notebook_id: id,
+      requested_access: access,
+    })
+    if (error) throw databaseError('The notebook sharing settings could not be updated.', error)
+    const parsed = shareDetailsSchema.safeParse(data)
+    if (!parsed.success) throw databaseError('Supabase returned invalid notebook sharing settings.', parsed.error)
+    return parsed.data as NotebookShareDetails
   }
 
   function saveNotebook(notebook: Notebook) {
@@ -138,7 +174,10 @@ export function createRepository(client: SupabaseClient) {
     persistedSourceContent.clear()
   }
 
-  return { ensureSession, loadWorkspace, saveNotebook, flushNotebook, saveSettings, deleteNotebook, clearWorkspace }
+  return {
+    ensureSession, loadWorkspace, loadSharedNotebook, getNotebookSharing, setNotebookSharing,
+    saveNotebook, flushNotebook, saveSettings, deleteNotebook, clearWorkspace,
+  }
 }
 
 export type NotebookRepository = ReturnType<typeof createRepository>
@@ -146,6 +185,9 @@ export type NotebookRepository = ReturnType<typeof createRepository>
 export const repository = {
   ensureSession: (...args: Parameters<NotebookRepository['ensureSession']>) => createRepositorySingleton().ensureSession(...args),
   loadWorkspace: (...args: Parameters<NotebookRepository['loadWorkspace']>) => createRepositorySingleton().loadWorkspace(...args),
+  loadSharedNotebook: (...args: Parameters<NotebookRepository['loadSharedNotebook']>) => createRepositorySingleton().loadSharedNotebook(...args),
+  getNotebookSharing: (...args: Parameters<NotebookRepository['getNotebookSharing']>) => createRepositorySingleton().getNotebookSharing(...args),
+  setNotebookSharing: (...args: Parameters<NotebookRepository['setNotebookSharing']>) => createRepositorySingleton().setNotebookSharing(...args),
   saveNotebook: (...args: Parameters<NotebookRepository['saveNotebook']>) => createRepositorySingleton().saveNotebook(...args),
   flushNotebook: (...args: Parameters<NotebookRepository['flushNotebook']>) => createRepositorySingleton().flushNotebook(...args),
   saveSettings: (...args: Parameters<NotebookRepository['saveSettings']>) => createRepositorySingleton().saveSettings(...args),

@@ -8,12 +8,19 @@ async function notebookSources(
   context: AuthContext,
   notebookId: string,
   requestedIds: string[],
+  shareToken?: string,
 ) {
   const sourceIds = [...new Set(requestedIds)]
-  const data = await supabaseRpc<SourceRow[]>(context, 'load_ai_sources', {
-    requested_notebook_id: notebookId,
-    requested_source_ids: sourceIds,
-  })
+  const data = shareToken
+    ? await supabaseRpc<SourceRow[]>(context, 'load_shared_ai_sources', {
+        requested_share_token: shareToken,
+        requested_notebook_id: notebookId,
+        requested_source_ids: sourceIds,
+      })
+    : await supabaseRpc<SourceRow[]>(context, 'load_ai_sources', {
+        requested_notebook_id: notebookId,
+        requested_source_ids: sourceIds,
+      })
   if (data.length !== sourceIds.length) {
     throw new HttpError('One or more selected sources no longer exist in this notebook.', 'SOURCE_NOT_FOUND', 404)
   }
@@ -44,7 +51,12 @@ export async function handleNotebookAiRequest(request: Request) {
       return new Response(audio, { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/octet-stream', 'X-Audio-Type': 'audio/wav', 'Cache-Control': 'no-store' } })
     }
 
-    const sources = await notebookSources(context, parsed.data.notebookId, parsed.data.sourceIds)
+    const sources = await notebookSources(
+      context,
+      parsed.data.notebookId,
+      parsed.data.sourceIds,
+      parsed.data.action === 'chat' ? parsed.data.shareToken : undefined,
+    )
     if (parsed.data.action === 'chat') {
       return jsonResponse(await answerQuestion({
         message: parsed.data.message,
