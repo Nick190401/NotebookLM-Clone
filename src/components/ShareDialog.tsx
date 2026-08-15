@@ -48,6 +48,7 @@ export function ShareDialog({ open, notebookId, notebookTitle, onClose }: ShareD
   useEffect(() => {
     if (!open) return
     let cancelled = false
+    // Flush first: a link handed out now has to point at the notebook as it currently looks.
     void repository
       .flushNotebook(notebookId)
       .then(() => repository.getNotebookSharing(notebookId))

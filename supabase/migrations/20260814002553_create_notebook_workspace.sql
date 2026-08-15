@@ -20,6 +20,8 @@ create table public.notebooks (
   primary key (user_id, id)
 );
 
+-- Ids are client-generated, so every child keys on (user_id, id) and carries user_id into the
+-- foreign key: a row can never reference another account's notebook.
 create table public.sources (
   user_id uuid not null,
   id text not null check (char_length(id) between 1 and 128),
@@ -90,6 +92,7 @@ alter table public.chat_messages enable row level security;
 alter table public.artifacts enable row level security;
 alter table public.notes enable row level security;
 
+-- auth.uid() is wrapped in a subselect so the planner evaluates it once per query, not per row.
 create policy user_settings_owner_access on public.user_settings
   for all to authenticated
   using ((select auth.uid()) = user_id)
@@ -124,6 +127,8 @@ revoke all on public.user_settings, public.notebooks, public.sources, public.cha
 grant select, insert, update, delete on public.user_settings, public.notebooks, public.sources, public.chat_messages, public.artifacts, public.notes to authenticated;
 grant all on public.user_settings, public.notebooks, public.sources, public.chat_messages, public.artifacts, public.notes to service_role;
 
+-- Every function here pins an empty search_path, so no name can resolve into a caller-controlled
+-- schema, and stays security invoker so RLS applies to the caller.
 create or replace function public.save_notebook_snapshot(snapshot jsonb)
 returns void
 language plpgsql
@@ -172,6 +177,7 @@ begin
     item ->> 'title',
     item ->> 'kind',
     coalesce(item ->> 'origin', ''),
+    -- The client omits unchanged source bodies, so a missing content field keeps the stored text.
     coalesce(
       item ->> 'content',
       (
@@ -195,6 +201,7 @@ begin
     topics = excluded.topics,
     selected = excluded.selected;
 
+  -- The snapshot is authoritative: rows it no longer lists are deleted, here and below.
   delete from public.sources target
   where target.user_id = current_user_id and target.notebook_id = current_notebook_id
     and not exists (

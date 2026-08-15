@@ -17,6 +17,7 @@ if ($ProjectRef -notmatch '^[a-z]{20}$') {
   throw 'The Supabase project ref is invalid.'
 }
 
+# Read as a SecureString and zeroed in the finally block, so the key never lingers in memory.
 $secureKey = Read-Host 'Groq API key' -AsSecureString
 $keyPointer = [IntPtr]::Zero
 $plainKey = $null

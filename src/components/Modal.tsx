@@ -13,6 +13,7 @@ interface ModalProps {
 
 export function Modal({ open, title, description, onClose, children, className = '', wide = false }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  // Ref-held so a new onClose identity does not tear down and rebind the Escape listener.
   const onCloseRef = useRef(onClose)
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function Modal({ open, title, description, onClose, children, className =
   if (!open) return null
 
   return (
+    // mousedown rather than click: a selection drag that ends on the backdrop must not close the dialog.
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div
         ref={dialogRef}

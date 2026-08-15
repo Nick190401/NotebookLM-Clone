@@ -92,6 +92,7 @@ export function SourcePanel({
   const sourceGroups = [...groups.entries()]
     .map(([label, groupSources]) => ({ label, sources: groupSources }))
     .sort((a, b) => {
+      // The unlabeled group always sorts last, behind the named ones.
       if (!a.label) return 1
       if (!b.label) return -1
       return a.label.localeCompare(b.label)

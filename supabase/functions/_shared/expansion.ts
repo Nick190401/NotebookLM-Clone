@@ -4,12 +4,9 @@ const EXPANSION_TIMEOUT_MS = 6_000
 const MAX_TERMS = 12
 
 /**
- * Lexical ranking cannot connect "Kosten" to "teuer" on its own. A single fast
- * model call turns the question into related surface forms, which are then scored
- * below the literal query terms during retrieval.
- *
- * Retrieval must never fail because of this, so every error resolves to no
- * expansion rather than propagating.
+ * Lexical ranking cannot connect "Kosten" to "teuer", so one fast model call derives
+ * related surface forms, scored below the literal query terms during retrieval.
+ * Any failure resolves to no expansion: retrieval must never break because of this.
  */
 export async function expandQuery(query: string, language: 'English' | 'Deutsch'): Promise<string[]> {
   const trimmed = query.trim()

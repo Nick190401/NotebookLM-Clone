@@ -4,6 +4,7 @@ import { afterEach } from 'vitest'
 
 afterEach(cleanup)
 
+// jsdom implements neither matchMedia nor scrollIntoView, both of which the app calls on mount.
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({

@@ -9,6 +9,7 @@ interface NormalizedText {
   ends: number[]
 }
 
+/** Collapses whitespace runs to a single space while keeping a map back to the original offsets. */
 function normalizeWithOffsets(value: string): NormalizedText {
   const characters: string[] = []
   const starts: number[] = []
@@ -39,6 +40,11 @@ function normalizeWithOffsets(value: string): NormalizedText {
   return { value: characters.join(''), starts, ends }
 }
 
+/**
+ * Locates a cited excerpt in the source text. Excerpts often differ from the original only
+ * in line breaks, so a whitespace-normalized pass follows the literal one; the returned
+ * offsets always point into the unmodified content.
+ */
 export function locateCitation(content: string, excerpt: string): CitationLocation | null {
   const cleanExcerpt = excerpt.trim()
   if (!content || !cleanExcerpt) return null

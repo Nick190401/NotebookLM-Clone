@@ -1,5 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
+# The cluster directory is deleted recursively in the finally block, so anything outside the
+# workspace or already present is refused before a single file is created.
 $workspaceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $clusterPath = [System.IO.Path]::GetFullPath((Join-Path $workspaceRoot '.postgres-test'))
 $expectedPrefix = $workspaceRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar

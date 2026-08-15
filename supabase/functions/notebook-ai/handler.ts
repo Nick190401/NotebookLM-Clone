@@ -33,6 +33,7 @@ async function notebookSources(context: AuthContext, notebookId: string, request
         requested_notebook_id: notebookId,
         requested_source_ids: sourceIds,
       })
+  // A short result means RLS withheld a source; grounding on the remainder would hide that.
   if (data.length !== sourceIds.length) {
     throw new HttpError('One or more selected sources no longer exist in this notebook.', 'SOURCE_NOT_FOUND', 404)
   }
@@ -49,9 +50,8 @@ async function* replay(buffered: AnswerEvent[], rest: AsyncGenerator<AnswerEvent
 }
 
 /**
- * Holds the response back until the provider has actually produced output, so a
- * rate limit or auth failure still surfaces as its real HTTP status instead of a
- * 200 with an error frame. Everything after that point streams.
+ * Withholds the response until the provider produces output, so a rate limit or auth
+ * failure still surfaces as its real status instead of a 200 with an error frame.
  */
 async function openEventStream(events: AsyncGenerator<AnswerEvent>) {
   const buffered: AnswerEvent[] = []
@@ -64,10 +64,7 @@ async function openEventStream(events: AsyncGenerator<AnswerEvent>) {
   return streamResponse(replay(buffered, events))
 }
 
-/**
- * Once the stream is open the status is already committed, so a late failure is
- * delivered as a terminal `error` event instead.
- */
+/** The status is committed once the stream opens, so late failures become `error` events. */
 function streamResponse(events: AsyncGenerator<AnswerEvent>) {
   const encoder = new TextEncoder()
   const body = new ReadableStream<Uint8Array>({

@@ -1,7 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap');
 
-/* Cascade order is load order: these files are contiguous slices of what used to
-   be a single stylesheet, so importing them in this sequence renders identically. */
+/* Import order is cascade order: these files are contiguous slices of one stylesheet. */
 @import './styles/base.css';
 @import './styles/chrome.css';
 @import './styles/home.css';

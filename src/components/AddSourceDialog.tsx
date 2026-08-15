@@ -112,6 +112,7 @@ export function AddSourceDialog({
     }
   }
 
+  /** Imports are independent: one failing item must not discard the ones that succeeded. */
   const settleImports = async <T,>(
     items: T[],
     importOne: (item: T) => Promise<Parameters<typeof makeSource>[0]>,
@@ -132,6 +133,7 @@ export function AddSourceDialog({
       if (!files.length) throw new Error('Choose at least one source file.')
       const { sources, failures } = await settleImports(files, uploadSource, (file) => file.name)
       if (!sources.length) throw new Error(failures.join(' · ') || 'The source could not be imported.')
+      // Partial success adds what worked but keeps the dialog open, so the skipped files stay visible.
       if (failures.length) {
         onAdd(sources)
         setError(`${sources.length} of ${files.length} imported. Skipped — ${failures.join(' · ')}`)
@@ -175,6 +177,8 @@ export function AddSourceDialog({
         (item) => item.title,
       )
       if (!deepResearch && !sources.length) throw new Error(failures.join(' · ') || 'No source could be imported.')
+      // The report leads the import and carries its own source list, because the cited pages
+      // are not always importable on their own.
       if (deepResearch) {
         const appendix = deepResearch.results
           .map((source, index) => `[${index + 1}] ${source.title}\n${source.url}`)

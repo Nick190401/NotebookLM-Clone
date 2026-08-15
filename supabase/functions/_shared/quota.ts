@@ -20,9 +20,8 @@ const BUCKET_LABELS: Record<QuotaBucket, string> = {
 }
 
 /**
- * Reserves one unit of the caller's hourly budget before any paid provider work
- * starts. The account is derived from the JWT inside Postgres, so the bucket is
- * the only thing the request can influence.
+ * Reserves one unit of the caller's hourly budget before any paid provider work starts.
+ * Postgres derives the account from the JWT, so the bucket is all the caller controls.
  */
 export async function consumeQuota(context: AuthContext, bucket: QuotaBucket): Promise<QuotaDecision> {
   const decision = await supabaseRpc<QuotaDecision>(context, 'consume_ai_quota', { requested_bucket: bucket })
@@ -43,10 +42,9 @@ export interface BurstLimiter {
 }
 
 /**
- * Per-instance burst guard. A new anonymous account costs nothing, so the durable
- * per-account quota alone cannot slow down a caller that keeps creating accounts.
- * This adds a cheap network-level ceiling in front of it; it is intentionally
- * best-effort because Edge instances neither share nor survive state.
+ * Network-level ceiling in front of the per-account quota, which a caller could
+ * otherwise sidestep by creating free anonymous accounts. Best-effort by design:
+ * Edge instances neither share nor outlive their state.
  */
 export function createBurstLimiter(options: { limit: number; windowMs: number; maxKeys?: number }): BurstLimiter {
   const maxKeys = options.maxKeys ?? 5_000

@@ -30,6 +30,7 @@ interface ArtifactViewerProps {
   onClose: () => void
 }
 
+/** Falls back to every source, so an artifact still names its origins after the selection changed. */
 function selectedSources(sources: Source[]) {
   const selected = sources.filter((source) => source.selected)
   return selected.length > 0 ? selected : sources
@@ -84,6 +85,7 @@ function AudioViewer({
     setBusy(true)
     setError('')
     try {
+      // Trimmed to the speech endpoint's script limit.
       const script = (
         content.narration || content.transcript.map((line) => `${line.speaker}: ${line.text}`).join('\n')
       ).slice(0, 4_000)
@@ -197,6 +199,7 @@ function branchPosition(index: number, total: number) {
 }
 
 function MindMapViewer({ content, sources }: { content: ArtifactContent; sources: Source[] }) {
+  // A generated map does not always contain an explicit root, so the first node stands in.
   const root = content.nodes.find((node) => !node.parentId) ?? content.nodes[0]
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   if (!root) return <EmptyArtifact />

@@ -22,6 +22,7 @@ function toHttpError(error: unknown) {
   return toGroqError(error)
 }
 
+/** Models occasionally wrap the object in prose, so a brace-delimited slice is the fallback. */
 function parseJson(value: string) {
   try {
     return JSON.parse(value) as unknown
@@ -109,6 +110,7 @@ const researchSearchResultSchema = z.object({
   score: z.number().optional(),
 })
 
+/** Walks the model ladder, absorbing one rate limit per call before moving to the next model. */
 async function structuredCall<T>(options: {
   messages: ChatMessage[]
   schemaName: string
@@ -121,6 +123,7 @@ async function structuredCall<T>(options: {
   let waitedForRateLimit = false
 
   const attempt = async (model: string) => {
+    // Only the larger models honour strict json_schema; the fast one takes plain json_object.
     const strict = model === GROQ_MODELS.primary || model === GROQ_MODELS.fallback
     const response = await groqFetch('/chat/completions', {
       method: 'POST',
@@ -170,6 +173,7 @@ async function structuredCall<T>(options: {
   throw toHttpError(mostInformativeError(errors))
 }
 
+/** Groq reports rate limits inconsistently: 429, 498, and sometimes 413 with a TPM message. */
 function retryableDelayMs(error: ProviderError) {
   const limited =
     error.status === 429 ||
@@ -180,6 +184,7 @@ function retryableDelayMs(error: ProviderError) {
   return Math.min(Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : 3_000, 12_000)
 }
 
+/** A 400 usually just means one model rejected the schema, so it ranks below every other failure. */
 function mostInformativeError(errors: unknown[]) {
   return (
     errors.find((error) => error instanceof HttpError) ??
@@ -294,10 +299,7 @@ function sentenceAround(answer: string, label: number) {
   return answer.slice(start, endMarker < 0 ? position + marker.length : endMarker + 1)
 }
 
-/**
- * Reference numbers come from the retrieved context, not from the model, so an
- * inline `[n]` always resolves to a passage that was really supplied.
- */
+/** Labels are resolved against the supplied chunks, so a model-invented `[n]` is dropped. */
 export function buildCitations(answer: string, chunks: SourceChunk[]): Citation[] {
   const labels = [...new Set([...answer.matchAll(/\[(\d+)\]/g)].map((match) => Number(match[1])))]
   return labels
@@ -319,6 +321,7 @@ export async function* streamGroundedAnswer(options: ChatStreamOptions): AsyncGe
   yield { type: 'context', usedSourceIds: context.usedSourceIds, omittedSourceIds: context.omittedSourceIds }
 
   const language = options.language === 'Deutsch' ? 'German' : 'English'
+  // Recent turns only, each clipped: history must not crowd the retrieved passages out of the prompt.
   const history = options.history.slice(-6).map((item) => ({ ...item, content: item.content.slice(0, 1_500) }))
   const { response, model } = await openChatStream({
     temperature: 0.2,
@@ -383,6 +386,7 @@ const ARTIFACT_INSTRUCTIONS: Record<ArtifactType, string> = {
     'Create a comparative table. Fill columns and rows; every row must have exactly as many cells as columns. Keep all other specialized arrays empty.',
 }
 
+/** Drops references to sources the model invented, so every attribution in the UI resolves. */
 function sanitizeArtifact(content: ArtifactContent, validSourceIds: Set<string>): ArtifactContent {
   const cleanIds = (ids: string[]) => ids.filter((id) => validSourceIds.has(id))
   return {
@@ -400,6 +404,7 @@ function sanitizeArtifact(content: ArtifactContent, validSourceIds: Set<string>)
   }
 }
 
+/** Models place the correct answer early far too often, so the position is randomized afterwards. */
 export function shuffleQuizOptions(content: ArtifactContent): ArtifactContent {
   return {
     ...content,
@@ -417,6 +422,7 @@ export function shuffleQuizOptions(content: ArtifactContent): ArtifactContent {
   }
 }
 
+/** Minimums are measured on the sanitized content, so ungrounded items cannot satisfy them. */
 function artifactValidator(type: ArtifactType, validSourceIds: Set<string>) {
   return artifactContentSchema.superRefine((content, context) => {
     const clean = sanitizeArtifact(content, validSourceIds)
@@ -510,6 +516,7 @@ const RESEARCH_ANGLES = [
 
 const RESEARCH_SCOUT_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'] as const
 
+/** Plain-text transcript form of a search tool result: Title/URL/Content/Score blocks. */
 function parseSearchToolOutput(output: string) {
   return output
     .trim()
@@ -529,6 +536,7 @@ function parseSearchToolOutput(output: string) {
     })
 }
 
+/** Compound tool calls report their findings in three different shapes depending on the tool. */
 function toolSearchResults(tool: unknown) {
   const value = tool as { browser_results?: unknown[]; output?: unknown; search_results?: { results?: unknown[] } }
   if (Array.isArray(value?.browser_results)) return value.browser_results
@@ -536,6 +544,7 @@ function toolSearchResults(tool: unknown) {
   return typeof value?.output === 'string' ? parseSearchToolOutput(value.output) : []
 }
 
+/** Dedupes by canonical URL across scouts, keeping the highest-scored copy of each page. */
 function normalizeResearchSources(scouts: ResearchScout[]) {
   const results = new Map<string, z.infer<typeof researchSearchResultSchema>>()
   for (const rawResult of scouts.flatMap((scout) => scout.tools.flatMap(toolSearchResults))) {
@@ -589,6 +598,7 @@ async function runResearchScout(
   const message = body.choices?.[0]?.message
   const memo = message?.content?.trim()
   const tools = message?.executed_tools ?? []
+  // A scout that answered from memory is not research, so an empty tool list fails the call.
   if (!tools.length) throw new SyntaxError('Research scout did not execute web search')
   return { memo: memo || 'The research scout returned source evidence without a narrative memo.', tools }
 }
@@ -610,6 +620,7 @@ async function synthesizeResearchReport(
   scouts: ResearchScout[],
   sources: { title: string; url: string; summary: string }[],
 ) {
+  // Links inside a memo are unverified model output; only tool-reported sources may be cited.
   const sanitizeMemo = (memo: string) => stripReasoning(memo).replace(/https?:\/\/\S+/g, '[unverified link removed]')
   const sourceContext = sources
     .map((source, index) => `[S${index + 1}] ${source.title}\nURL: ${source.url}\nEvidence: ${source.summary}`)
@@ -650,6 +661,7 @@ async function synthesizeResearchReport(
       if (error instanceof HttpError && error.code === 'AI_NOT_CONFIGURED') break
     }
   }
+  // Every synthesis model failed: the raw memos are still a usable report.
   const fallbackReport = scouts
     .map((scout, index) => `## Research angle ${index + 1}\n\n${sanitizeMemo(scout.memo)}`)
     .join('\n\n')

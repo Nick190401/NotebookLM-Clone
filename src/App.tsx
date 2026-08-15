@@ -38,6 +38,7 @@ function sharedRouteFromHash() {
 
 export default function App() {
   const [data, setData] = useState<AppData>(() => createEmptyAppData())
+  // Mirrors `data` so callbacks always read the newest workspace instead of a stale closure.
   const dataRef = useRef(data)
   const [account, setAccount] = useState<AccountIdentity | null>(null)
   const [accountPrompt, setAccountPrompt] = useState<AccountPrompt>(() => accountPromptFromLocation())
@@ -96,6 +97,7 @@ export default function App() {
           .catch(() => setAiStatus(null))
       } catch (caught) {
         if (cancelled) return
+        // One delayed retry, so a transient cold start does not land the user on the error screen.
         if (!retried) {
           retried = true
           await new Promise((resolve) => setTimeout(resolve, 400))
@@ -225,6 +227,7 @@ export default function App() {
       .catch(recordPersistenceError)
   }
 
+  /** A visitor's edits to a shared notebook stay in memory: nothing is written back to the owner. */
   const updateSharedNotebook = (id: string, recipe: (notebook: Notebook) => Notebook) => {
     const current = dataRef.current.notebooks.find((notebook) => notebook.id === id)
     if (!current) return null
@@ -356,6 +359,7 @@ export default function App() {
         </div>
       )}
       {activeNotebook ? (
+        // The key remounts the workspace, so no per-notebook state survives a notebook or share switch.
         <Workspace
           key={`${activeNotebook.id}-${sharedToken ?? 'owner'}`}
           notebook={activeNotebook}

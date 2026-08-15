@@ -92,8 +92,8 @@ begin
     raise exception 'AI quota did not refuse the call above the configured limit';
   end if;
 
-  -- Repeated refusals must stay refusals; the counter assertion runs as the
-  -- table owner further down, because authenticated cannot read the counters.
+  -- Repeated refusals must stay refusals; counters are asserted later as the table owner,
+  -- because authenticated cannot read them.
   perform public.consume_ai_quota('smoke');
 
   begin
@@ -163,9 +163,8 @@ begin
     raise exception 'An invalid share token returned notebook data';
   end if;
 
-  -- Grounding runs inside the Edge Function. If the browser role could read
-  -- shared source text directly, chat-only redaction would be cosmetic: a
-  -- chat-only link already exposes the notebook and source ids.
+  -- A chat-only link already exposes notebook and source ids, so the redaction only holds
+  -- if the browser role cannot read shared source text directly.
   begin
     perform public.load_shared_ai_sources(share_token, 'notebook-a', array['source-a']);
     raise exception 'A share link holder can read unredacted source text directly';
@@ -226,8 +225,7 @@ set local role service_role;
 
 do $$
 begin
-  -- Redacting the browser payload must not break the Edge Function, which is
-  -- what actually grounds a chat-only conversation.
+  -- Redacting the browser payload must not break Edge Function grounding.
   if jsonb_array_length(
        public.load_shared_ai_sources(current_setting('test.share_token')::uuid, 'notebook-a', array['source-a'])
      ) <> 1 then

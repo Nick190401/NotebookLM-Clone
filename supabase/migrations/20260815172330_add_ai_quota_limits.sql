@@ -1,10 +1,8 @@
 begin;
 
--- Anonymous sign-ins are enabled, so a per-account quota is the only thing that
--- stops an unbounded caller from draining the shared Groq budget. Counters are
--- unreachable from the client: RLS is on with no policy, every grant is revoked,
--- and the single writer is a SECURITY DEFINER function that derives the account
--- from auth.uid() instead of trusting a parameter.
+-- Anonymous sign-ins are enabled, so a per-account quota is the only brake on a caller
+-- draining the shared Groq budget. The counters stay unreachable from the client: RLS on
+-- with no policy, all grants revoked, and the sole writer derives the account from auth.uid().
 
 create table public.ai_quota_policies (
   bucket text primary key check (char_length(bucket) between 1 and 40),
@@ -59,6 +57,8 @@ begin
     raise exception 'Unknown quota bucket' using errcode = '22023';
   end if;
 
+  -- Fixed windows keyed by their start; the previous one is dropped on the next call, so the
+  -- counters need no scheduled cleanup.
   current_window := to_timestamp(
     floor(extract(epoch from clock_timestamp()) / quota.window_seconds) * quota.window_seconds
   );

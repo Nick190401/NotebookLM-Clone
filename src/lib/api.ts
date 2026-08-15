@@ -41,6 +41,7 @@ export class ApiError extends Error {
   }
 }
 
+/** supabase-js hides the failed Response on `error.context`; without it every failure reads as a 500. */
 async function toApiError(error: unknown) {
   const context = (error as { context?: unknown })?.context
   if (context instanceof Response) {
@@ -95,6 +96,7 @@ export type AnswerEvent =
   | { type: 'done'; citations: Citation[]; model: string }
   | { type: 'error'; error: { code: string; message: string } }
 
+/** Raw fetch skips the client's auth handling, so the session is resolved and attached here. */
 async function functionsFetch(functionName: string, body: unknown, signal?: AbortSignal) {
   const client = requireSupabase()
   const { data, error } = await client.auth.getSession()
@@ -112,10 +114,7 @@ async function functionsFetch(functionName: string, body: unknown, signal?: Abor
   })
 }
 
-/**
- * Streamed chat. `functions.invoke` buffers the whole body, so the SSE transport
- * is read directly here; the answer is rendered while the model is still writing.
- */
+/** `functions.invoke` buffers the whole body, so the SSE transport is read directly here. */
 export async function* streamAskAi(input: AskAiInput, signal?: AbortSignal): AsyncGenerator<AnswerEvent> {
   let response: Response
   try {

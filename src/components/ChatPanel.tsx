@@ -39,11 +39,9 @@ const suggestions = [
 ]
 
 /**
- * The preview is anchored to its chip, so a citation near either edge of the
- * column would otherwise be clipped by the neighbouring panels. The offset is
- * derived from the chip and the preview's untransformed width rather than its
- * current rectangle, because that rectangle is mid-transition whenever the
- * pointer arrives from another citation.
+ * Shifts a chip-anchored preview back inside the column instead of letting the
+ * neighbouring panels clip it. Uses offsetWidth because the preview's rectangle
+ * is mid-transition whenever the pointer arrives from another citation.
  */
 function clampPreview(event: { currentTarget: HTMLElement }) {
   const preview = event.currentTarget.querySelector<HTMLElement>('.citation-preview')
@@ -58,7 +56,7 @@ function clampPreview(event: { currentTarget: HTMLElement }) {
   preview.style.setProperty('--citation-shift', `${placed - centered}px`)
 }
 
-/** The model writes Markdown emphasis; bold is the only form it uses often. */
+/** Bold is the only Markdown emphasis the model produces often enough to render. */
 function boldSegments(text: string) {
   return text
     .split(/(\*\*[^*\n]+\*\*)/g)
@@ -141,8 +139,7 @@ export function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const selectedSources = sources.filter((source) => source.selected)
 
-  // A block body matters here: React treats any non-function return value as a
-  // cleanup and throws on it in the production build.
+  // Block body is required: React throws on a non-function effect return in production.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [busy, messages.length, streamingAnswer])

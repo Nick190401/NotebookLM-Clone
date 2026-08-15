@@ -29,6 +29,10 @@ export function createBlankNotebook(title = 'Untitled notebook'): Notebook {
   }
 }
 
+/**
+ * Duplicates a notebook with fresh ids, rewriting every artifact reference onto the new
+ * source and node ids. Messages and notes are deliberately dropped: a copy starts empty.
+ */
 export function copyNotebook(source: Notebook): Notebook {
   const timestamp = Date.now()
   const sourceIds = new Map(source.sources.map((item) => [item.id, createId('source')]))

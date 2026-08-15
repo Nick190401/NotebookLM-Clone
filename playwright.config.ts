@@ -2,11 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 
 const PORT = 4173
 
-/**
- * End-to-end coverage runs against the production bundle with a stubbed Supabase
- * project, so it needs no secrets and stays deterministic in CI while still
- * exercising the real router, lazy chunks and streaming transport in a browser.
- */
+// Runs against the production bundle with a stubbed Supabase project: no secrets,
+// deterministic in CI, still exercises the real router, lazy chunks and streaming.
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,

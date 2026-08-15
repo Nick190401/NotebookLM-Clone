@@ -1,6 +1,8 @@
 import type { Source, SourceKind } from '../types'
 import { createId } from './id'
 
+// Stop words for topic inference: generic English plus the reporting and statistics
+// vocabulary that is frequent in uploaded documents but says nothing about the subject.
 const COMMON_WORDS = new Set([
   'about',
   'also',
@@ -101,6 +103,7 @@ const COMMON_WORDS = new Set([
   'per',
 ])
 
+/** Below this many sources, grouping labels add clutter rather than structure. */
 export const SOURCE_LABEL_THRESHOLD = 5
 
 export function normalizeSourceLabel(value: string) {

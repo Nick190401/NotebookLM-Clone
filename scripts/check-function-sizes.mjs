@@ -5,6 +5,7 @@ const functions = [
   ['source-import', 'supabase/functions/source-import/deno.json', 'supabase/functions/source-import/index.ts'],
   ['send-email', 'supabase/functions/send-email/deno.json', 'supabase/functions/send-email/index.ts'],
 ]
+// Supabase rejects Edge Function bundles at 5 MB, so CI fails before a deploy can.
 const limitInBytes = 5 * 1024 * 1024
 
 for (const [name, config, entrypoint] of functions) {

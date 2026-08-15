@@ -45,6 +45,7 @@ async function extractPdf(bytes: Uint8Array) {
   }
 }
 
+// Numeric entities are decoded generically; this covers the named ones that actually turn up.
 const HTML_ENTITIES: Record<string, string> = {
   amp: '&',
   apos: "'",
@@ -80,6 +81,7 @@ export function extractDocx(bytes: Uint8Array) {
   let uncompressedBytes = 0
   try {
     files = unzipSync(bytes, {
+      // Zip-bomb guard: the budget is checked against the declared size, before anything inflates.
       filter: (file) => {
         const wanted = /^word\/(document|footnotes|endnotes|header\d+|footer\d+)\.xml$/i.test(file.name)
         if (wanted) {
@@ -92,6 +94,7 @@ export function extractDocx(bytes: Uint8Array) {
   } catch {
     throw new HttpError('The DOCX archive is damaged or invalid.', 'INVALID_DOCUMENT', 422)
   }
+  // The body comes first; headers, footers and notes follow in archive order.
   const documentParts = Object.keys(files)
     .filter((name) => /^word\/(document|footnotes|endnotes|header\d+|footer\d+)\.xml$/i.test(name))
     .sort((left, right) => Number(!left.endsWith('/document.xml')) - Number(!right.endsWith('/document.xml')))
@@ -205,6 +208,7 @@ async function importYoutube(url: URL): Promise<ImportedSource> {
   }
 }
 
+/** RFC 1918 plus loopback, link-local, CGNAT, multicast and the reserved documentation ranges. */
 function privateIpv4(address: string) {
   const parts = address.split('.').map(Number)
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false
@@ -244,10 +248,12 @@ function privateAddress(address: string) {
     normalized.startsWith('2001:db8')
   )
     return true
+  // Only 2000::/3 is globally routable, so anything outside it counts as private.
   const first = Number.parseInt(normalized.split(':')[0] || '0', 16)
   return first < 0x2000 || first > 0x3fff
 }
 
+/** SSRF guard: literals are checked directly, hostnames through their resolved addresses. */
 async function assertPublicUrl(url: URL) {
   if (!['http:', 'https:'].includes(url.protocol))
     throw new HttpError('Only public HTTP and HTTPS URLs are supported.', 'INVALID_URL', 400)
@@ -289,6 +295,7 @@ async function download(url: URL, redirects = 0): Promise<{ bytes: Uint8Array; c
   let response: Response
   try {
     response = await fetch(url, {
+      // Manual redirects: every hop has to clear assertPublicUrl on its own.
       redirect: 'manual',
       headers: {
         'user-agent': 'NotebookLM-Clone/2.0 (Supabase Edge Function)',
@@ -310,6 +317,7 @@ async function download(url: URL, redirects = 0): Promise<{ bytes: Uint8Array; c
   const reader = response.body?.getReader()
   if (!reader) throw new HttpError('The URL returned no content.', 'EMPTY_SOURCE', 422)
 
+  // content-length is advisory, so the size limit is enforced again while the body streams in.
   const parts: Uint8Array[] = []
   let total = 0
   while (true) {

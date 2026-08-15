@@ -51,10 +51,7 @@ function sse(events: unknown[]) {
   return `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
 }
 
-/**
- * Routes every Supabase call the browser makes to an in-memory double. The app
- * under test is the real production bundle; only the backend is replaced.
- */
+/** Routes every Supabase call to an in-memory double; the bundle under test stays real. */
 export async function stubSupabase(page: Page, options: StubOptions = {}) {
   const state: StubState = { notebooks: [], savedSnapshots: [] }
 

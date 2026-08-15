@@ -1,18 +1,12 @@
 begin;
 
--- The private schema was only ever reachable by authenticated, so a
--- service_role execute grant inside it could not resolve the function.
+-- Without usage on the private schema, a service_role execute grant cannot resolve.
 grant usage on schema private to service_role;
 
--- Chat-only sharing redacts source text in load_shared_notebook, but
--- load_shared_ai_sources returned the unredacted text to any authenticated
--- caller holding the share token. Because load_shared_notebook still hands out
--- source ids, a chat-only link holder could call this RPC directly and recover
--- everything the redaction was meant to withhold.
---
--- Grounding happens inside the notebook-ai Edge Function, so the browser never
--- needs this RPC. Restricting it to service_role turns the redaction into an
--- actual authorization boundary instead of a client-side convention.
+-- Chat-only sharing redacts source text in load_shared_notebook, but that RPC still hands
+-- out source ids, so a link holder could call this one and recover the redacted text.
+-- Grounding runs inside the Edge Function, so service_role-only makes the redaction an
+-- authorization boundary rather than a client-side convention.
 create or replace function private.load_shared_ai_sources(
   requested_share_token uuid,
   requested_notebook_id text,

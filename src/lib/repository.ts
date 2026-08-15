@@ -10,6 +10,8 @@ import type {
 } from '../types'
 import { requireSupabase } from './supabase'
 
+// Postgres hands back jsonb, so nothing is typed at this boundary; the schemas below are
+// the single place where a workspace payload is checked before the app trusts it.
 const settingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
   outputLanguage: z.enum(['English', 'Deutsch']),
@@ -142,6 +144,8 @@ interface NotebookWriter {
 
 export function createRepository(client: SupabaseClient) {
   const writers = new Map<string, NotebookWriter>()
+  // notebookId -> sourceId -> body already written. Cleared on every account switch, because
+  // the cache is only valid for the signed-in user.
   const persistedSourceContent = new Map<string, Map<string, string>>()
   let settingsPending: Promise<void> = Promise.resolve()
 
@@ -151,6 +155,10 @@ export function createRepository(client: SupabaseClient) {
     persistedSourceContent.set(notebook.id, new Map(notebook.sources.map((source) => [source.id, source.content])))
   }
 
+  /**
+   * Omits source bodies that are already stored. The snapshot RPC keeps the existing text for
+   * any source sent without `content`, so a save costs the edit rather than every source again.
+   */
   function compactSnapshot(notebook: Notebook) {
     const previous = persistedSourceContent.get(notebook.id)
     return {
@@ -163,6 +171,7 @@ export function createRepository(client: SupabaseClient) {
     }
   }
 
+  /** Every visitor gets an account immediately; upgrading to email keeps the same user id. */
   async function ensureSession() {
     const { data: current, error: sessionError } = await client.auth.getSession()
     if (sessionError) throw databaseError('The Supabase session could not be restored.', sessionError)
@@ -244,10 +253,8 @@ export function createRepository(client: SupabaseClient) {
   }
 
   /**
-   * One write per notebook is in flight at a time and edits made while it runs
-   * are coalesced into a single follow-up snapshot. Rapid interactions such as
-   * toggling sources therefore cost two writes instead of one per change, and the
-   * newest state still wins.
+   * Keeps one write per notebook in flight and coalesces edits made meanwhile into a
+   * single follow-up snapshot, so rapid interactions cost two writes, not one each.
    */
   function saveNotebook(notebook: Notebook) {
     const existing = writers.get(notebook.id)
@@ -332,10 +339,8 @@ export function createRepository(client: SupabaseClient) {
 export type NotebookRepository = ReturnType<typeof createRepository>
 
 /**
- * Building the repository requires a configured Supabase client, so every call
- * is forwarded to a singleton created on first use. Importing this module with
- * missing configuration therefore stays harmless and the error surfaces where
- * the app can render it instead of during module evaluation.
+ * Defers client construction to the first call so that importing this module without
+ * Supabase configuration fails where the app can render the error, not at load time.
  */
 export const repository: NotebookRepository = new Proxy({} as NotebookRepository, {
   get(_target, method: string) {

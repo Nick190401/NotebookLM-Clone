@@ -21,6 +21,7 @@ export class ProviderError extends Error {
   }
 }
 
+/** Groq often states the wait inside the error message instead of a Retry-After header. */
 function retryAfterSeconds(message: string, header: string | null) {
   if (header) return header
   const match = message.match(/try again in\s+([0-9.]+)(ms|s|m)/i)
@@ -88,9 +89,8 @@ function trailingPartialTagLength(value: string) {
 }
 
 /**
- * Streaming counterpart to {@link stripReasoning}. Reasoning tags can be split
- * across provider chunks, so a partial tag at the end of a chunk is withheld
- * until the next one arrives instead of being forwarded to the reader.
+ * Streaming counterpart to {@link stripReasoning}. Reasoning tags can be split across
+ * provider chunks, so a trailing partial tag is withheld until the next chunk arrives.
  */
 export function createReasoningFilter() {
   let buffer = ''
@@ -183,6 +183,7 @@ export function toGroqError(error: unknown) {
   return new HttpError('The AI service is currently unavailable.', 'AI_UNAVAILABLE', 502)
 }
 
+// Chunked because String.fromCharCode overflows the call stack on a large byte array.
 function toBase64(bytes: Uint8Array) {
   let binary = ''
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {

@@ -1,5 +1,4 @@
-// Kept aligned with @supabase/supabase-js/cors without importing the full SDK
-// into latency- and bundle-sensitive Edge Functions.
+// Mirrors @supabase/supabase-js/cors without pulling the SDK into an Edge Function bundle.
 const ALLOWED_HEADERS =
   'authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage'
 const ALLOWED_METHODS = 'POST, OPTIONS'
@@ -12,9 +11,8 @@ function configuredOrigins() {
 }
 
 /**
- * Browser callers are restricted to the origins in ALLOWED_ORIGINS. The wildcard
- * only applies while that secret is unset, which keeps local development usable
- * without silently shipping an open policy to a configured deployment.
+ * Restricts browsers to ALLOWED_ORIGINS. The wildcard applies only while that secret
+ * is unset, so local development works without shipping an open policy.
  */
 export function corsHeadersFor(request: Request): Record<string, string> {
   const base = {
@@ -33,10 +31,7 @@ export function corsHeadersFor(request: Request): Record<string, string> {
   }
 }
 
-/**
- * Owns preflight and CORS for every response, including streamed ones, so the
- * individual handlers never repeat the policy.
- */
+/** Owns preflight and CORS for every response, including streamed ones. */
 export function withCors(handler: (request: Request) => Response | Promise<Response>) {
   return async (request: Request): Promise<Response> => {
     const cors = corsHeadersFor(request)
@@ -90,6 +85,7 @@ export function errorResponse(error: unknown) {
   )
 }
 
+/** Supabase has shipped several names for this key; the plural variant holds a JSON map. */
 function publishableKey() {
   const direct = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY')
   if (direct) return direct
@@ -165,10 +161,9 @@ export function supabaseRpc<T>(context: AuthContext, functionName: string, body:
 }
 
 /**
- * Reserved for the token-bound shared-chat lookup. That RPC returns unredacted
- * source text, so it must stay unreachable from the browser: the caller is
- * already authenticated at the HTTP boundary and the share token authorizes the
- * read. Every other call keeps forwarding the caller JWT so RLS still applies.
+ * Reserved for the token-bound shared-chat lookup, whose RPC returns unredacted source
+ * text and must stay unreachable from the browser. Everything else forwards the caller
+ * JWT through supabaseRpc so RLS still applies.
  */
 export function supabaseServiceRpc<T>(context: AuthContext, functionName: string, body: Record<string, unknown>) {
   const key = serviceRoleKey()

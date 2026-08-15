@@ -91,6 +91,7 @@ export interface ArtifactTranscriptLine {
   sourceIds: string[]
 }
 
+/** One flat shape for all artifact types; every viewer reads only the fields its type fills. */
 export interface ArtifactContent {
   summary: string
   sections: ArtifactSection[]
@@ -122,6 +123,7 @@ export interface Note {
   title: string
   body: string
   createdAt: number
+  /** Set on notes saved from a chat answer: they stay read-only to keep the cited wording intact. */
   locked?: boolean
 }
 

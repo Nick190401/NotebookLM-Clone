@@ -185,6 +185,7 @@
   padding: 0 7px;
   color: var(--blue-strong);
 }
+/* This is a label inside .auth-form, so it has to outrank the more specific .auth-form label. */
 .auth-confirm {
   display: grid !important;
   grid-template-columns: auto 1fr;

@@ -135,8 +135,7 @@ function splitSource(source: Source): SourceChunk[] {
     const candidate = current ? `${current} ${paragraph}` : paragraph
     if (candidate.length > CHUNK_TARGET_CHARS && current) {
       push(current)
-      // Carrying the tail forward keeps a fact that straddles the cut readable
-      // in both neighbouring chunks.
+      // The carried tail keeps a fact that straddles the cut readable in both chunks.
       current = `${overlapTail(current)} ${paragraph}`.trim()
       continue
     }
@@ -241,16 +240,14 @@ export function retrieveContext(sources: Source[], query: string, options: Retri
     usedChars += chunk.text.length
   }
 
-  // Every selected source gets its best passage first, so a source is never
-  // silently dropped just because another one dominates the ranking.
+  // Best passage per source first, so no source is dropped just because another dominates.
   for (const chunk of ranked) {
     if (pickedIds.has(chunk.sourceId)) continue
     if (usedChars + chunk.text.length > maxChars || picked.length >= maxChunks) break
     take(chunk)
   }
 
-  // The remaining budget goes to depth, skipping passages that mostly repeat
-  // what is already in context.
+  // Remaining budget buys depth, skipping passages that mostly repeat existing context.
   for (const chunk of ranked) {
     if (picked.includes(chunk) || chunk.score <= 0) continue
     if (usedChars + chunk.text.length > maxChars || picked.length >= maxChunks) break
@@ -267,10 +264,7 @@ export function retrieveContext(sources: Source[], query: string, options: Retri
   }
 }
 
-/**
- * Numbering is assigned here rather than by the model, so an inline `[n]` marker
- * always resolves to a known passage.
- */
+/** Numbering is assigned here, not by the model, so every inline `[n]` resolves. */
 export function formatContext(chunks: SourceChunk[]) {
   return chunks
     .map((chunk, index) => `[${index + 1}] ${chunk.title} (sourceId: ${chunk.sourceId})\n${chunk.text}`)

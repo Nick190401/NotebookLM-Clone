@@ -59,8 +59,7 @@ test('keeps a citation preview inside the chat column instead of scrolling it si
 
   const citation = page.getByRole('button', { name: 'Citation 1' })
   await expect(citation).toBeVisible()
-  // Hovering twice matters: the offset must not be derived from a rectangle that
-  // is still animating from the previous hover.
+  // Hover twice: the offset must not come from a rectangle still animating from the last hover.
   await citation.hover()
   await page.mouse.move(0, 0)
   await citation.hover()

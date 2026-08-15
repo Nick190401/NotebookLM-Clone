@@ -1,12 +1,8 @@
 import { lazy } from 'react'
 
 /**
- * Surfaces that only open on an explicit user action. Keeping them out of the
- * entry chunk means the first paint does not pay for nine artifact viewers, the
- * export helpers, or the account dialogs.
- *
- * AddSourceDialog is deliberately not here: a new notebook opens it immediately,
- * so deferring it would only add a round trip to the first thing a user sees.
+ * Surfaces that only open on an explicit user action, kept out of the entry chunk.
+ * AddSourceDialog is excluded on purpose: a new notebook opens it immediately.
  */
 export const ArtifactConfigDialog = lazy(() =>
   import('./ArtifactConfigDialog').then((module) => ({ default: module.ArtifactConfigDialog })),

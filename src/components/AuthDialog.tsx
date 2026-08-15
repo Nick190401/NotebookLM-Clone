@@ -95,6 +95,7 @@ export function AuthDialog({
     event.preventDefault()
     const address = email.trim()
     if (!address || !password) return setError('Enter your email and password.')
+    // Signing in switches accounts; guest notebooks stay behind, so it takes an explicit confirmation.
     if (notebookCount > 0 && !switchConfirmed)
       return setError('Confirm that you understand the guest notebooks will not move to the other account.')
     void run(async () => {
@@ -165,6 +166,7 @@ export function AuthDialog({
               <p>Set or replace the password used for email sign-in.</p>
             </div>
           </div>
+          {/* Hidden username field: password managers need it to file the new password under this account. */}
           <input
             className="visually-hidden"
             type="email"

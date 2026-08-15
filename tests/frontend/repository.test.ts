@@ -173,8 +173,8 @@ describe('Supabase repository', () => {
     expect(rpc).toHaveBeenCalledTimes(2)
     const written = rpc.mock.calls[1][1].snapshot
     expect(written.title).toBe('Edit 8')
-    // Coalescing must never shrink the notebook: every source has to survive, and
-    // unchanged bodies are omitted only because the RPC restores them server-side.
+    // Coalescing must never shrink the notebook; only unchanged bodies may be omitted,
+    // because the RPC restores those server-side.
     expect(written.sources).toHaveLength(18)
     expect(written.sources.map((source: { id: string }) => source.id)).toEqual(sources.map((source) => source.id))
     expect(rpc.mock.calls[0][1].snapshot.sources).toHaveLength(18)

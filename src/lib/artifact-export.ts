@@ -41,6 +41,7 @@ export function artifactExportLabel(artifact: Artifact) {
   return artifact.type === 'datatable' ? 'Download CSV' : 'Download Markdown'
 }
 
+/** Falls back to raw JSON when generation never produced content, so a failed artifact still exports. */
 export function artifactExport(artifact: Artifact, sources: Source[]): ArtifactExport {
   const content = artifact.content
   if (!content) {
@@ -70,6 +71,7 @@ export function artifactExport(artifact: Artifact, sources: Source[]): ArtifactE
       ...(includeSources ? [sourceNames(row.sourceIds, sources)] : []),
     ])
     return {
+      // CRLF row endings: Excel refuses to parse LF-only CSV as a table.
       content: [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n'),
       extension: 'csv',
       label: artifactExportLabel(artifact),

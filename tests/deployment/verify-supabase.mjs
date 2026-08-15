@@ -7,6 +7,7 @@ if (!url || !key)
 
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } }
 const primary = createClient(url, key, clientOptions)
+// Second anonymous account: the isolation checks need a caller that owns nothing.
 const isolated = createClient(url, key, clientOptions)
 const verificationId = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
 const notebookId = `verification-notebook-${verificationId}`
@@ -192,8 +193,8 @@ try {
     )
   }
 
-  // Only the Edge Function may read unredacted shared source text. The grounded
-  // shared chat below proves that path still works.
+  // Only the Edge Function may read unredacted shared source text; the grounded chat
+  // below proves that path still works.
   const { error: sharedAiSourcesError } = await isolated.rpc('load_shared_ai_sources', {
     requested_share_token: shareToken,
     requested_notebook_id: notebookId,

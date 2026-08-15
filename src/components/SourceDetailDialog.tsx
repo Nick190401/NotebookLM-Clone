@@ -18,6 +18,7 @@ interface SourceParagraph {
   end: number
 }
 
+/** Splits into lines but keeps absolute offsets, so a citation range still maps onto a paragraph. */
 function sourceParagraphs(content: string): SourceParagraph[] {
   return Array.from(content.matchAll(/[^\r\n]+/g), (match) => ({
     text: match[0],

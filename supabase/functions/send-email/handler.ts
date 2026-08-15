@@ -11,6 +11,7 @@ function requiredEnv(name: string) {
 }
 
 function verifiedPayload(request: Request, body: string): SendEmailPayload {
+  // Supabase stores the hook secret with a "v1,whsec_" prefix that the verifier does not expect.
   const webhook = new Webhook(requiredEnv('SEND_EMAIL_HOOK_SECRET').replace('v1,whsec_', ''))
   try {
     return webhook.verify(body, Object.fromEntries(request.headers)) as SendEmailPayload

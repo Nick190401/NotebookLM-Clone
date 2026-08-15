@@ -8,6 +8,8 @@ export const supabaseConfigurationError =
     ? 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to .env.'
     : null
 
+// Null rather than a throw at import time, so a misconfigured deployment can still boot far
+// enough to render supabaseConfigurationError.
 export const supabase =
   supabaseUrl && publishableKey
     ? createClient(supabaseUrl, publishableKey, {

@@ -1,3 +1,4 @@
+// Edge Functions run on Deno and cannot import from src/, so the shared shapes are mirrored here.
 export type SourceKind = 'pdf' | 'web' | 'youtube' | 'text' | 'audio' | 'image'
 
 export interface Source {

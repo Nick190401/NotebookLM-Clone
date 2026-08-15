@@ -111,6 +111,7 @@ export function Workspace({
   // Leaving the notebook must not keep a half-written answer streaming.
   useEffect(() => () => streamRef.current?.abort(), [])
 
+  /** Read-only visitors mutate their local copy only, so the sort timestamp stays untouched. */
   const update = (recipe: (current: Notebook) => Notebook) => {
     return onUpdate((current) => (readOnly ? recipe(current) : { ...recipe(current), updatedAt: Date.now() }))
   }
@@ -122,6 +123,7 @@ export function Workspace({
 
   const addSources = (sources: Source[]) => {
     update((current) => {
+      // Crossing the threshold also labels the sources that were added while it was below.
       const nextCount = current.sources.length + sources.length
       if (nextCount < SOURCE_LABEL_THRESHOLD) return { ...current, sources: [...current.sources, ...sources] }
       const existing =
@@ -208,10 +210,10 @@ export function Workspace({
     let answer = ''
     let citations: Citation[] = []
     try {
+      // The Edge Function grounds on the stored snapshot, so pending writes must land first.
       await onFlush()
-      // The partial answer stays in component state; only the finished message is
-      // persisted, so a streamed reply costs one snapshot write instead of one
-      // per token.
+      // Only the finished message is persisted; the partial answer stays in component
+      // state, so a streamed reply costs one snapshot write instead of one per token.
       for await (const event of streamAskAi(
         {
           notebookId: notebook.id,
@@ -245,6 +247,7 @@ export function Workspace({
       }))
     } catch (caught) {
       if (controller.signal.aborted) return
+      // A mid-answer failure keeps whatever streamed so far, marked as interrupted.
       const message = caught instanceof Error ? caught.message : 'The AI request failed.'
       const partial = answer.trim()
       update((current) => ({

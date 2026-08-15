@@ -1,5 +1,6 @@
 import { z } from 'npm:zod@4.4.3'
 
+// The bounds below are a defence, not documentation: every field is capped before it reaches a model.
 export const sourceKindSchema = z.enum(['pdf', 'web', 'youtube', 'text', 'audio', 'image'])
 
 export const chatRequestSchema = z.object({

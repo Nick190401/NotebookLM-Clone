@@ -15,6 +15,8 @@ create unique index notebooks_share_token_idx
   on public.notebooks (share_token)
   where share_token is not null;
 
+-- PostgREST only exposes public, so the definer functions live here and are reached through thin
+-- public wrappers whose grants are the real access control.
 create schema if not exists private;
 revoke all on schema private from public, anon;
 grant usage on schema private to authenticated;
@@ -59,6 +61,7 @@ begin
 end;
 $$;
 
+-- Definer, because a visitor has to read rows they do not own; the share token is the authorization.
 create or replace function private.load_shared_notebook(requested_share_token uuid)
 returns jsonb
 language plpgsql
@@ -92,6 +95,8 @@ begin
       'id', shared_notebook.id,
       'title', shared_notebook.title,
       'emoji', shared_notebook.emoji,
+      -- A chat-only link gets ids and titles but no source text; grounding runs in the Edge Function,
+      -- and every source counts as selected because the visitor cannot toggle them.
       'sources', coalesce((
         select jsonb_agg(jsonb_build_object(
           'id', source.id,
@@ -108,6 +113,7 @@ begin
         where source.user_id = shared_notebook.user_id
           and source.notebook_id = shared_notebook.id
       ), '[]'::jsonb),
+      -- The owner's conversation is never part of a share.
       'messages', '[]'::jsonb,
       'artifacts', case when shared_notebook.sharing_access = 'full' then coalesce((
         select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(

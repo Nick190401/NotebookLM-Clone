@@ -6,8 +6,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Vendors change on dependency upgrades, application code changes daily.
-        // Splitting them keeps the large, stable chunks cached across deploys.
+        // Vendors change far less often than app code; splitting keeps them cached across deploys.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
           if (id.includes('@supabase')) return 'vendor-supabase'

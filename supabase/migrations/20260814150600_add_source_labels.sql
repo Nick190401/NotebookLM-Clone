@@ -4,6 +4,7 @@ alter table public.sources
   add column label text not null default '',
   add constraint sources_label_length_check check (char_length(label) <= 80);
 
+-- The snapshot function is recreated in full because the sources insert now carries label.
 create or replace function public.save_notebook_snapshot(snapshot jsonb)
 returns void
 language plpgsql

@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 
 export function useDismissOnOutside(open: boolean, ref: RefObject<HTMLElement | null>, onDismiss: () => void) {
+  // Held in a ref so a new callback identity does not resubscribe the document listeners.
   const onDismissRef = useRef(onDismiss)
 
   useEffect(() => {

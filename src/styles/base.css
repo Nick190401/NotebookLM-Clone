@@ -43,8 +43,7 @@
 
 * {
   box-sizing: border-box;
-  /* scrollbar-width does not inherit, so the scrollbar is styled on every
-     element rather than once on the root. */
+  /* scrollbar-width does not inherit, so it is set on every element, not just the root. */
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
