@@ -43,6 +43,35 @@ test('streams a grounded answer and opens the cited evidence in its source', asy
   await expect(page.locator('mark.citation-highlight')).toContainText('Reliable ten-minute service')
 })
 
+test('keeps a citation preview inside the chat column instead of scrolling it sideways', async ({ page }) => {
+  await stubSupabase(page, {
+    answerChunks: [
+      'Reliable ten-minute service improved public trust.\n',
+      '[1] Timetable coordination reduced missed connections.',
+    ],
+  })
+  await page.goto('/')
+  await expect(heading(page, 'My notebooks')).toBeVisible()
+  await createNotebookWithSource(page)
+
+  await page.getByPlaceholder('Ask about your sources…').fill('What improved public trust?')
+  await page.getByRole('button', { name: 'Send message' }).click()
+
+  const citation = page.getByRole('button', { name: 'Citation 1' })
+  await expect(citation).toBeVisible()
+  await citation.hover()
+
+  const stream = page.locator('.message-stream')
+  // The preview eases into place, so settle before measuring where it landed.
+  await expect(async () => {
+    const preview = await stream.locator('.citation-preview').boundingBox()
+    const column = await stream.boundingBox()
+    expect(preview!.x).toBeGreaterThanOrEqual(column!.x)
+    expect(preview!.x + preview!.width).toBeLessThanOrEqual(column!.x + column!.width)
+  }).toPass()
+  expect(await stream.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1)
+})
+
 test('a reloaded workspace restores the persisted notebook', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('/')
