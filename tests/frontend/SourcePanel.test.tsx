@@ -21,12 +21,19 @@ describe('SourcePanel', () => {
 
   it('filters sources by title and inferred topic without changing selection', async () => {
     const user = userEvent.setup()
-    const transit = makeSource({ title: 'Transit plan', kind: 'text', origin: 'Test', content: 'Railway railway railway reliability improves connections.' })
-    const climate = makeSource({ title: 'Climate report', kind: 'pdf', origin: 'Test', content: 'Emissions emissions emissions require mitigation.' })
-    render(<SourcePanel
-      sources={[transit, climate]}
-      {...props()}
-    />)
+    const transit = makeSource({
+      title: 'Transit plan',
+      kind: 'text',
+      origin: 'Test',
+      content: 'Railway railway railway reliability improves connections.',
+    })
+    const climate = makeSource({
+      title: 'Climate report',
+      kind: 'pdf',
+      origin: 'Test',
+      content: 'Emissions emissions emissions require mitigation.',
+    })
+    render(<SourcePanel sources={[transit, climate]} {...props()} />)
 
     await user.type(screen.getByPlaceholderText('Filter sources'), 'railway')
     expect(screen.getByRole('button', { name: 'Open source Transit plan' })).toBeInTheDocument()
@@ -37,12 +44,14 @@ describe('SourcePanel', () => {
   it('offers automatic topic organization once five sources are present', async () => {
     const user = userEvent.setup()
     const callbacks = props()
-    const sources = Array.from({ length: 5 }, (_, index) => makeSource({
-      title: `Source ${index + 1}`,
-      kind: 'text',
-      origin: 'Test',
-      content: `Mobility mobility mobility evidence ${index}`,
-    }))
+    const sources = Array.from({ length: 5 }, (_, index) =>
+      makeSource({
+        title: `Source ${index + 1}`,
+        kind: 'text',
+        origin: 'Test',
+        content: `Mobility mobility mobility evidence ${index}`,
+      }),
+    )
     render(<SourcePanel sources={sources} {...callbacks} />)
 
     expect(screen.getByText('5 sources without a label')).toBeInTheDocument()
@@ -81,7 +90,10 @@ describe('SourcePanel', () => {
   it('renames and deletes groups and moves a source to a new label', async () => {
     const user = userEvent.setup()
     const callbacks = props()
-    const source = { ...makeSource({ title: 'Transit plan', kind: 'text', origin: 'Test', content: 'Reliable public transport.' }), label: 'Mobility' }
+    const source = {
+      ...makeSource({ title: 'Transit plan', kind: 'text', origin: 'Test', content: 'Reliable public transport.' }),
+      label: 'Mobility',
+    }
     render(<SourcePanel sources={[source]} {...callbacks} />)
 
     await user.click(screen.getByRole('button', { name: 'Manage label Mobility' }))

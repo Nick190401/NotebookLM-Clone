@@ -2,18 +2,103 @@ import type { Source, SourceKind } from '../types'
 import { createId } from './id'
 
 const COMMON_WORDS = new Set([
-  'about', 'also', 'and', 'are', 'been', 'but', 'can', 'could', 'from', 'have', 'into',
-  'more', 'most', 'not', 'only', 'other', 'over', 'such', 'than', 'that', 'the', 'their',
-  'there', 'these', 'they', 'this', 'through', 'use', 'using', 'was', 'were', 'which',
-  'will', 'with', 'would', 'your',
-  'percent', 'percentage', 'million', 'billion', 'thousand', 'number', 'numbers',
-  'total', 'average', 'median', 'value', 'values', 'rate', 'rates', 'share',
-  'across', 'between', 'during', 'after', 'before', 'under', 'above', 'while',
-  'however', 'therefore', 'because', 'according', 'reported', 'reports', 'remains',
-  'reached', 'include', 'includes', 'including', 'compared', 'versus', 'years',
-  'year', 'month', 'months', 'quarter', 'annual', 'source', 'sources', 'content',
-  'image', 'images', 'figure', 'table', 'chart', 'text', 'document', 'page',
-  'section', 'overview', 'summary', 'study', 'data', 'based', 'each', 'per',
+  'about',
+  'also',
+  'and',
+  'are',
+  'been',
+  'but',
+  'can',
+  'could',
+  'from',
+  'have',
+  'into',
+  'more',
+  'most',
+  'not',
+  'only',
+  'other',
+  'over',
+  'such',
+  'than',
+  'that',
+  'the',
+  'their',
+  'there',
+  'these',
+  'they',
+  'this',
+  'through',
+  'use',
+  'using',
+  'was',
+  'were',
+  'which',
+  'will',
+  'with',
+  'would',
+  'your',
+  'percent',
+  'percentage',
+  'million',
+  'billion',
+  'thousand',
+  'number',
+  'numbers',
+  'total',
+  'average',
+  'median',
+  'value',
+  'values',
+  'rate',
+  'rates',
+  'share',
+  'across',
+  'between',
+  'during',
+  'after',
+  'before',
+  'under',
+  'above',
+  'while',
+  'however',
+  'therefore',
+  'because',
+  'according',
+  'reported',
+  'reports',
+  'remains',
+  'reached',
+  'include',
+  'includes',
+  'including',
+  'compared',
+  'versus',
+  'years',
+  'year',
+  'month',
+  'months',
+  'quarter',
+  'annual',
+  'source',
+  'sources',
+  'content',
+  'image',
+  'images',
+  'figure',
+  'table',
+  'chart',
+  'text',
+  'document',
+  'page',
+  'section',
+  'overview',
+  'summary',
+  'study',
+  'data',
+  'based',
+  'each',
+  'per',
 ])
 
 export const SOURCE_LABEL_THRESHOLD = 5
@@ -33,9 +118,7 @@ export function suggestedSourceLabel(source: Pick<Source, 'topics'>) {
 }
 
 export function organizeSources(sources: Source[]) {
-  return sources.map((source) => source.label
-    ? source
-    : { ...source, label: suggestedSourceLabel(source) })
+  return sources.map((source) => (source.label ? source : { ...source, label: suggestedSourceLabel(source) }))
 }
 
 export function sourceKindLabel(source: Pick<Source, 'kind' | 'origin'>) {
@@ -61,16 +144,14 @@ export function inferTopics(content: string) {
 export function summarizeContent(content: string) {
   const clean = content.replace(/\s+/g, ' ').trim()
   if (!clean) return 'A source ready to explore in this notebook.'
-  const firstTwo = clean.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ')
+  const firstTwo = clean
+    .split(/(?<=[.!?])\s+/)
+    .slice(0, 2)
+    .join(' ')
   return firstTwo.length <= 220 ? firstTwo : `${firstTwo.slice(0, 219).trim()}…`
 }
 
-export function makeSource(input: {
-  title: string
-  kind: SourceKind
-  origin: string
-  content: string
-}): Source {
+export function makeSource(input: { title: string; kind: SourceKind; origin: string; content: string }): Source {
   return {
     id: createId('source'),
     title: input.title.trim() || 'Untitled source',

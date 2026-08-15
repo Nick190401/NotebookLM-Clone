@@ -1,0 +1,9 @@
+dist
+node_modules
+coverage
+deno.lock
+package-lock.json
+supabase/functions/**/deno.lock
+supabase/functions/**/node_modules
+.postgres-test
+.playwright-mcp

@@ -1,9 +1,51 @@
 // Kept aligned with @supabase/supabase-js/cors without importing the full SDK
 // into latency- and bundle-sensitive Edge Functions.
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+const ALLOWED_HEADERS =
+  'authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage'
+const ALLOWED_METHODS = 'POST, OPTIONS'
+
+function configuredOrigins() {
+  return (Deno.env.get('ALLOWED_ORIGINS') ?? '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean)
+}
+
+/**
+ * Browser callers are restricted to the origins in ALLOWED_ORIGINS. The wildcard
+ * only applies while that secret is unset, which keeps local development usable
+ * without silently shipping an open policy to a configured deployment.
+ */
+export function corsHeadersFor(request: Request): Record<string, string> {
+  const base = {
+    'Access-Control-Allow-Headers': ALLOWED_HEADERS,
+    'Access-Control-Allow-Methods': ALLOWED_METHODS,
+    'Access-Control-Max-Age': '86400',
+  }
+  const allowed = configuredOrigins()
+  if (!allowed.length) return { ...base, 'Access-Control-Allow-Origin': '*' }
+
+  const origin = request.headers.get('Origin')?.replace(/\/$/, '')
+  return {
+    ...base,
+    'Access-Control-Allow-Origin': origin && allowed.includes(origin) ? origin : allowed[0],
+    Vary: 'Origin',
+  }
+}
+
+/**
+ * Owns preflight and CORS for every response, including streamed ones, so the
+ * individual handlers never repeat the policy.
+ */
+export function withCors(handler: (request: Request) => Response | Promise<Response>) {
+  return async (request: Request): Promise<Response> => {
+    const cors = corsHeadersFor(request)
+    if (request.method === 'OPTIONS') return new Response('ok', { headers: cors })
+    const response = await handler(request)
+    const headers = new Headers(response.headers)
+    for (const [name, value] of Object.entries(cors)) headers.set(name, value)
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
+  }
 }
 
 export class HttpError extends Error {
@@ -27,7 +69,7 @@ export interface AuthContext {
 export function jsonResponse(data: unknown, status = 200, headers: HeadersInit = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json', ...headers },
+    headers: { 'Content-Type': 'application/json', ...headers },
   })
 }
 
@@ -35,10 +77,17 @@ export function errorResponse(error: unknown) {
   if (error instanceof HttpError) {
     console.error('Request failed', JSON.stringify({ code: error.code, status: error.status, message: error.message }))
     const headers = error.retryAfter ? { 'Retry-After': error.retryAfter } : undefined
-    return jsonResponse({ error: { code: error.code, message: error.message, retryAfter: error.retryAfter } }, error.status, headers)
+    return jsonResponse(
+      { error: { code: error.code, message: error.message, retryAfter: error.retryAfter } },
+      error.status,
+      headers,
+    )
   }
   console.error(error)
-  return jsonResponse({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected Edge Function error occurred.' } }, 500)
+  return jsonResponse(
+    { error: { code: 'INTERNAL_ERROR', message: 'An unexpected Edge Function error occurred.' } },
+    500,
+  )
 }
 
 function publishableKey() {
@@ -72,14 +121,19 @@ export async function authenticatedContext(request: Request): Promise<AuthContex
   } catch {
     throw new HttpError('Supabase Auth is currently unavailable.', 'AUTH_UNAVAILABLE', 503)
   }
-  if (response.status === 401 || response.status === 403) throw new HttpError('The Supabase session is invalid or expired.', 'AUTH_INVALID', 401)
+  if (response.status === 401 || response.status === 403)
+    throw new HttpError('The Supabase session is invalid or expired.', 'AUTH_INVALID', 401)
   if (!response.ok) throw new HttpError('Supabase Auth could not validate the session.', 'AUTH_UNAVAILABLE', 503)
-  const user = await response.json() as { id?: string }
+  const user = (await response.json()) as { id?: string }
   if (!user.id) throw new HttpError('The Supabase session has no user.', 'AUTH_INVALID', 401)
   return { authorization, publishableKey: key, supabaseUrl, userId: user.id }
 }
 
-export async function supabaseRpc<T>(context: AuthContext, functionName: string, body: Record<string, unknown>): Promise<T> {
+export async function supabaseRpc<T>(
+  context: AuthContext,
+  functionName: string,
+  body: Record<string, unknown>,
+): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${context.supabaseUrl}/rest/v1/rpc/${encodeURIComponent(functionName)}`, {
@@ -99,9 +153,5 @@ export async function supabaseRpc<T>(context: AuthContext, functionName: string,
     console.error('Supabase RPC failed', functionName, response.status, await response.text())
     throw new HttpError('The requested Supabase operation failed.', 'DATABASE_ERROR', 500)
   }
-  return await response.json() as T
-}
-
-export function optionsResponse() {
-  return new Response('ok', { headers: corsHeaders })
+  return (await response.json()) as T
 }

@@ -7,7 +7,16 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function quiz(questionCount: number): ArtifactContent {
   return {
-    summary: '', sections: [], cards: [], nodes: [], slides: [], columns: [], rows: [], metrics: [], transcript: [], narration: '',
+    summary: '',
+    sections: [],
+    cards: [],
+    nodes: [],
+    slides: [],
+    columns: [],
+    rows: [],
+    metrics: [],
+    transcript: [],
+    narration: '',
     questions: Array.from({ length: questionCount }, (_, index) => ({
       question: `Question ${index}`,
       options: [`correct-${index}`, `wrong-a-${index}`, `wrong-b-${index}`, `wrong-c-${index}`],

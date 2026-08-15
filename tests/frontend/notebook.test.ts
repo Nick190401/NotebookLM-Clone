@@ -9,7 +9,10 @@ function artifactContent(sourceId: string): ArtifactContent {
     sections: [{ heading: 'Finding', body: 'Evidence', sourceIds: [sourceId] }],
     cards: [{ front: 'Question', back: 'Answer', sourceId }],
     questions: [{ question: 'Question', options: ['A'], correctIndex: 0, explanation: 'Evidence', sourceId }],
-    nodes: [{ id: 'root-node', label: 'Root', parentId: '', sourceId }, { id: 'child-node', label: 'Child', parentId: 'root-node', sourceId }],
+    nodes: [
+      { id: 'root-node', label: 'Root', parentId: '', sourceId },
+      { id: 'child-node', label: 'Child', parentId: 'root-node', sourceId },
+    ],
     slides: [{ title: 'Slide', body: 'Evidence', metric: '1', sourceIds: [sourceId] }],
     columns: ['Finding'],
     rows: [{ cells: ['Evidence'], sourceIds: [sourceId] }],
@@ -21,7 +24,12 @@ function artifactContent(sourceId: string): ArtifactContent {
 
 describe('copyNotebook', () => {
   it('copies sources and ready Studio outputs with fresh internal references', () => {
-    const source = makeSource({ title: 'Evidence', kind: 'text', origin: 'Test', content: 'Reliable evidence supports the finding.' })
+    const source = makeSource({
+      title: 'Evidence',
+      kind: 'text',
+      origin: 'Test',
+      content: 'Reliable evidence supports the finding.',
+    })
     const readyArtifact: Artifact = {
       id: 'ready-artifact',
       type: 'report',
@@ -34,7 +42,9 @@ describe('copyNotebook', () => {
     const notebook = {
       ...createBlankNotebook('Research notebook'),
       sources: [source],
-      messages: [{ id: 'private-message', role: 'user' as const, content: 'Private question', citations: [], createdAt: 1 }],
+      messages: [
+        { id: 'private-message', role: 'user' as const, content: 'Private question', citations: [], createdAt: 1 },
+      ],
       notes: [{ id: 'private-note', title: 'Private note', body: 'Personal thought', createdAt: 1 }],
       artifacts: [readyArtifact, { ...readyArtifact, id: 'pending-artifact', status: 'generating' as const }],
     }

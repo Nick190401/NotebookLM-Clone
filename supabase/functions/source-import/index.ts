@@ -1,3 +1,4 @@
+import { withCors } from '../_shared/http.ts'
 import { handleSourceImportRequest } from './handler.ts'
 
-Deno.serve(handleSourceImportRequest)
+Deno.serve(withCors(handleSourceImportRequest))

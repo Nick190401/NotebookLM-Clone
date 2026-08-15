@@ -50,7 +50,8 @@ async function sendWithResend(message: EmailMessage) {
 
 export async function handleSendEmailRequest(request: Request): Promise<Response> {
   try {
-    if (request.method !== 'POST') throw new HttpError('The send-email hook only accepts POST.', 'METHOD_NOT_ALLOWED', 405)
+    if (request.method !== 'POST')
+      throw new HttpError('The send-email hook only accepts POST.', 'METHOD_NOT_ALLOWED', 405)
     const body = await request.text()
     const payload = verifiedPayload(request, body)
     for (const message of buildMessages(payload, requiredEnv('SUPABASE_URL'))) {

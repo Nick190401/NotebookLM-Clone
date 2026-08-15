@@ -22,26 +22,29 @@ const mocks = vi.hoisted(() => ({
   clearWorkspace: vi.fn(),
   getAiStatus: vi.fn(),
   askAi: vi.fn(),
+  streamAskAi: vi.fn(),
   createArtifact: vi.fn(),
 }))
 
-vi.mock('../../src/lib/repository', () => ({ repository: {
-  ensureSession: mocks.ensureSession,
-  beginAccountUpgrade: mocks.beginAccountUpgrade,
-  signIn: mocks.signIn,
-  setPassword: mocks.setPassword,
-  sendPasswordReset: mocks.sendPasswordReset,
-  signOut: mocks.signOut,
-  loadWorkspace: mocks.loadWorkspace,
-  loadSharedNotebook: mocks.loadSharedNotebook,
-  getNotebookSharing: mocks.getNotebookSharing,
-  setNotebookSharing: mocks.setNotebookSharing,
-  saveNotebook: mocks.saveNotebook,
-  flushNotebook: mocks.flushNotebook,
-  saveSettings: mocks.saveSettings,
-  deleteNotebook: mocks.deleteNotebook,
-  clearWorkspace: mocks.clearWorkspace,
-} }))
+vi.mock('../../src/lib/repository', () => ({
+  repository: {
+    ensureSession: mocks.ensureSession,
+    beginAccountUpgrade: mocks.beginAccountUpgrade,
+    signIn: mocks.signIn,
+    setPassword: mocks.setPassword,
+    sendPasswordReset: mocks.sendPasswordReset,
+    signOut: mocks.signOut,
+    loadWorkspace: mocks.loadWorkspace,
+    loadSharedNotebook: mocks.loadSharedNotebook,
+    getNotebookSharing: mocks.getNotebookSharing,
+    setNotebookSharing: mocks.setNotebookSharing,
+    saveNotebook: mocks.saveNotebook,
+    flushNotebook: mocks.flushNotebook,
+    saveSettings: mocks.saveSettings,
+    deleteNotebook: mocks.deleteNotebook,
+    clearWorkspace: mocks.clearWorkspace,
+  },
+}))
 
 vi.mock('../../src/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/lib/api')>()
@@ -49,6 +52,7 @@ vi.mock('../../src/lib/api', async (importOriginal) => {
     ...actual,
     getAiStatus: mocks.getAiStatus,
     askAi: mocks.askAi,
+    streamAskAi: mocks.streamAskAi,
     createArtifact: mocks.createArtifact,
   }
 })
@@ -57,7 +61,10 @@ async function createNotebookWithTextSource(user: ReturnType<typeof userEvent.se
   await user.click(screen.getByRole('button', { name: 'New notebook' }))
   await user.click(screen.getByRole('tab', { name: 'Copied text' }))
   await user.type(screen.getByLabelText('Source title'), 'Transit reliability research')
-  await user.type(screen.getByLabelText('Pasted text'), 'Reliable ten-minute service improved public trust. Timetable coordination reduced missed connections by 24 percent.')
+  await user.type(
+    screen.getByLabelText('Pasted text'),
+    'Reliable ten-minute service improved public trust. Timetable coordination reduced missed connections by 24 percent.',
+  )
   await user.click(screen.getByRole('button', { name: 'Add source' }))
 }
 
@@ -79,12 +86,25 @@ describe('NotebookLM clone with Supabase persistence', () => {
     mocks.saveSettings.mockResolvedValue(undefined)
     mocks.deleteNotebook.mockResolvedValue(undefined)
     mocks.clearWorkspace.mockResolvedValue(undefined)
-    mocks.getAiStatus.mockResolvedValue({ configured: true, provider: 'Groq', primaryModel: 'openai/gpt-oss-120b', fallbackModel: 'openai/gpt-oss-20b', fastModel: 'llama-3.1-8b-instant' })
-    mocks.askAi.mockImplementation(async (request: { sourceIds: string[] }) => ({
-      content: 'Public trust improves when service is reliable and connections are coordinated. [1]',
-      citations: [{ sourceId: request.sourceIds[0], label: 1, excerpt: 'Reliable ten-minute service improved public trust.' }],
-      model: 'openai/gpt-oss-120b',
-    }))
+    mocks.getAiStatus.mockResolvedValue({
+      configured: true,
+      provider: 'Groq',
+      primaryModel: 'openai/gpt-oss-120b',
+      fallbackModel: 'openai/gpt-oss-20b',
+      fastModel: 'llama-3.1-8b-instant',
+    })
+    mocks.streamAskAi.mockImplementation(async function* (request: { sourceIds: string[] }) {
+      yield { type: 'context', usedSourceIds: request.sourceIds, omittedSourceIds: [] }
+      yield { type: 'delta', text: 'Public trust improves when service is reliable ' }
+      yield { type: 'delta', text: 'and connections are coordinated. [1]' }
+      yield {
+        type: 'done',
+        citations: [
+          { sourceId: request.sourceIds[0], label: 1, excerpt: 'Reliable ten-minute service improved public trust.' },
+        ],
+        model: 'openai/gpt-oss-120b',
+      }
+    })
   })
 
   it('loads an empty Supabase workspace and creates the complete three-panel experience', async () => {
@@ -130,18 +150,68 @@ describe('NotebookLM clone with Supabase persistence', () => {
 
     expect(await screen.findByText(/Public trust improves/i)).toBeInTheDocument()
     expect(mocks.flushNotebook).toHaveBeenCalledOnce()
-    expect(mocks.askAi).toHaveBeenCalledWith(expect.objectContaining({
-      notebookId: expect.stringMatching(/^notebook-/),
-      sourceIds: [expect.stringMatching(/^source-/)],
-      message: 'What improves public trust?',
-      language: 'English',
-    }))
-    expect(mocks.askAi.mock.calls[0][0]).not.toHaveProperty('sources')
+    expect(mocks.streamAskAi).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notebookId: expect.stringMatching(/^notebook-/),
+        sourceIds: [expect.stringMatching(/^source-/)],
+        message: 'What improves public trust?',
+        language: 'English',
+      }),
+      expect.anything(),
+    )
+    expect(mocks.streamAskAi.mock.calls[0][0]).not.toHaveProperty('sources')
 
     const messageStream = screen.getByLabelText('Chat conversation')
     const saveButtons = within(messageStream).getAllByRole('button', { name: /Save to note/i })
     await user.click(saveButtons.at(-1)!)
     expect(screen.getByText('Saved chat response')).toBeInTheDocument()
+  })
+
+  it('renders the answer while it streams and persists it exactly once', async () => {
+    const user = userEvent.setup()
+    let releaseSecondChunk!: () => void
+    const secondChunk = new Promise<void>((resolve) => {
+      releaseSecondChunk = resolve
+    })
+    mocks.streamAskAi.mockImplementation(async function* () {
+      yield { type: 'delta', text: 'Partial answer so far' }
+      await secondChunk
+      yield { type: 'delta', text: ' and the rest of it.' }
+      yield { type: 'done', citations: [], model: 'openai/gpt-oss-120b' }
+    })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'My notebooks' })
+    await createNotebookWithTextSource(user)
+    const savesBeforeAnswer = mocks.saveNotebook.mock.calls.length
+
+    await user.type(screen.getByPlaceholderText('Ask about your sources…'), 'What is known?')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(await screen.findByText(/Partial answer so far/)).toBeInTheDocument()
+    expect(screen.queryByText(/the rest of it/)).not.toBeInTheDocument()
+
+    releaseSecondChunk()
+    expect(await screen.findByText(/Partial answer so far and the rest of it\./)).toBeInTheDocument()
+
+    // One write for the question, one for the finished answer: never one per token.
+    await waitFor(() => expect(mocks.saveNotebook.mock.calls.length).toBe(savesBeforeAnswer + 2))
+  })
+
+  it('keeps the streamed text when the connection drops mid-answer', async () => {
+    const user = userEvent.setup()
+    mocks.streamAskAi.mockImplementation(async function* () {
+      yield { type: 'delta', text: 'Everything up to the cut' }
+      throw new Error('The AI stream ended unexpectedly.')
+    })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'My notebooks' })
+    await createNotebookWithTextSource(user)
+
+    await user.type(screen.getByPlaceholderText('Ask about your sources…'), 'What is known?')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(await screen.findByText(/Everything up to the cut/)).toBeInTheDocument()
+    expect(await screen.findByText(/Interrupted/)).toBeInTheDocument()
   })
 
   it('opens a citation at the exact highlighted evidence in its source', async () => {
@@ -154,12 +224,16 @@ describe('NotebookLM clone with Supabase persistence', () => {
     await user.click(screen.getByRole('button', { name: 'Send message' }))
     const citation = await screen.findByRole('button', { name: 'Citation 1' })
 
-    expect(within(citation).getByRole('tooltip')).toHaveTextContent('Reliable ten-minute service improved public trust.')
+    expect(within(citation).getByRole('tooltip')).toHaveTextContent(
+      'Reliable ten-minute service improved public trust.',
+    )
     await user.click(citation)
 
-    expect(screen.getByRole('heading', { name: 'Citation evidence' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Citation evidence' })).toBeInTheDocument()
     expect(screen.getByText('Highlighted in the source text')).toBeInTheDocument()
-    expect(screen.getByText('Reliable ten-minute service improved public trust.', { selector: 'mark' })).toHaveClass('citation-highlight')
+    expect(screen.getByText('Reliable ten-minute service improved public trust.', { selector: 'mark' })).toHaveClass(
+      'citation-highlight',
+    )
   })
 
   it('opens the data-preserving account flow from the guest profile button', async () => {
@@ -169,7 +243,7 @@ describe('NotebookLM clone with Supabase persistence', () => {
     await screen.findByRole('heading', { name: 'My notebooks' })
     await user.click(screen.getByRole('button', { name: 'Open guest account' }))
 
-    expect(screen.getByRole('heading', { name: 'Save this workspace' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Save this workspace' })).toBeInTheDocument()
     expect(screen.getByText('Keep the same workspace')).toBeInTheDocument()
     expect(screen.getByLabelText('0 guest notebooks')).toBeInTheDocument()
   })
@@ -266,18 +340,20 @@ describe('NotebookLM clone with Supabase persistence', () => {
         id: 'shared-notebook',
         title: 'Shared transit research',
         emoji: '📓',
-        sources: [{
-          id: 'shared-source',
-          title: 'Transit reliability research',
-          kind: 'text',
-          origin: '',
-          content: '',
-          summary: '',
-          topics: [],
-          label: '',
-          selected: true,
-          createdAt: 1,
-        }],
+        sources: [
+          {
+            id: 'shared-source',
+            title: 'Transit reliability research',
+            kind: 'text',
+            origin: '',
+            content: '',
+            summary: '',
+            topics: [],
+            label: '',
+            selected: true,
+            createdAt: 1,
+          },
+        ],
         messages: [],
         artifacts: [],
         notes: [],
@@ -302,11 +378,14 @@ describe('NotebookLM clone with Supabase persistence', () => {
     await user.type(screen.getByPlaceholderText(/Ask about your sources/), 'What improves public trust?')
     await user.click(screen.getByRole('button', { name: 'Send message' }))
     expect(await screen.findByText(/Public trust improves/i)).toBeInTheDocument()
-    expect(mocks.askAi).toHaveBeenCalledWith(expect.objectContaining({
-      notebookId: 'shared-notebook',
-      sourceIds: ['shared-source'],
-      shareToken,
-    }))
+    expect(mocks.streamAskAi).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notebookId: 'shared-notebook',
+        sourceIds: ['shared-source'],
+        shareToken,
+      }),
+      expect.anything(),
+    )
     expect(mocks.flushNotebook).not.toHaveBeenCalled()
     expect(mocks.saveNotebook).not.toHaveBeenCalled()
   })
@@ -320,7 +399,20 @@ describe('NotebookLM clone with Supabase persistence', () => {
         id: 'shared-copy-source',
         title: 'Shared research',
         emoji: '📓',
-        sources: [{ id: 'source-one', title: 'Evidence', kind: 'text', origin: 'Owner', content: 'Grounded evidence.', summary: 'Evidence.', topics: ['grounded'], label: 'Grounded', selected: true, createdAt: 1 }],
+        sources: [
+          {
+            id: 'source-one',
+            title: 'Evidence',
+            kind: 'text',
+            origin: 'Owner',
+            content: 'Grounded evidence.',
+            summary: 'Evidence.',
+            topics: ['grounded'],
+            label: 'Grounded',
+            selected: true,
+            createdAt: 1,
+          },
+        ],
         messages: [{ id: 'private-chat', role: 'user', content: 'Private history', citations: [], createdAt: 1 }],
         artifacts: [],
         notes: [{ id: 'private-note', title: 'Private note', body: 'Do not copy', createdAt: 1 }],
@@ -355,21 +447,25 @@ describe('NotebookLM clone with Supabase persistence', () => {
         id: 'shared-full-notebook',
         title: 'Shared evidence notebook',
         emoji: '📚',
-        sources: [{
-          id: 'shared-full-source',
-          title: 'Reliability evidence',
-          kind: 'text',
-          origin: 'Owner source',
-          content: 'Reliable service improved public trust.',
-          summary: 'A source about service reliability.',
-          topics: ['reliability'],
-          label: 'Reliability',
-          selected: true,
-          createdAt: 1,
-        }],
+        sources: [
+          {
+            id: 'shared-full-source',
+            title: 'Reliability evidence',
+            kind: 'text',
+            origin: 'Owner source',
+            content: 'Reliable service improved public trust.',
+            summary: 'A source about service reliability.',
+            topics: ['reliability'],
+            label: 'Reliability',
+            selected: true,
+            createdAt: 1,
+          },
+        ],
         messages: [],
         artifacts: [],
-        notes: [{ id: 'shared-note', title: 'Owner insight', body: 'Coordination matters.', createdAt: 1, locked: true }],
+        notes: [
+          { id: 'shared-note', title: 'Owner insight', body: 'Coordination matters.', createdAt: 1, locked: true },
+        ],
         chatConfig: { style: 'Default', length: 'Default', instructions: '' },
         createdAt: 1,
         updatedAt: 1,
@@ -387,9 +483,9 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(screen.queryByRole('button', { name: 'Open guest account' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Open source Reliability evidence' }))
-    expect(screen.getByText('Reliable service improved public trust.')).toBeInTheDocument()
+    expect(await screen.findByText('Reliable service improved public trust.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close dialog' }))
     await user.click(screen.getByRole('button', { name: /Owner insight/i }))
-    expect(screen.getByDisplayValue('Coordination matters.')).toBeDisabled()
+    expect(await screen.findByDisplayValue('Coordination matters.')).toBeDisabled()
   })
 })

@@ -12,7 +12,8 @@ export interface Source {
   createdAt: number
 }
 
-export type ArtifactType = 'audio' | 'video' | 'mindmap' | 'report' | 'flashcards' | 'quiz' | 'infographic' | 'slides' | 'datatable'
+export type ArtifactType =
+  'audio' | 'video' | 'mindmap' | 'report' | 'flashcards' | 'quiz' | 'infographic' | 'slides' | 'datatable'
 
 export interface ArtifactConfig {
   focus: string

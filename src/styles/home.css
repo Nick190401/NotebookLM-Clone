@@ -1,0 +1,354 @@
+.notebook-search {
+  display: flex;
+  width: min(260px, 28vw);
+  min-height: 40px;
+  padding: 0 12px;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+
+.notebook-search:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 15%, transparent);
+}
+.notebook-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.toolbar-select,
+.view-toggle {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+
+.toolbar-select {
+  padding: 0 13px;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.view-toggle {
+  padding: 3px;
+}
+.view-toggle button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+.view-toggle button.active {
+  color: var(--blue-strong);
+  background: var(--blue-soft);
+}
+
+.notebook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.new-notebook-card,
+.notebook-card {
+  position: relative;
+  min-height: 224px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.new-notebook-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+  border-style: dashed;
+}
+
+.new-notebook-card:hover {
+  background: var(--blue-soft);
+  border-color: color-mix(in srgb, var(--blue) 65%, var(--line));
+}
+
+.new-notebook-icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
+  place-items: center;
+  color: var(--blue-strong);
+  background: color-mix(in srgb, var(--blue-soft) 78%, var(--surface));
+  border-radius: 50%;
+}
+
+.new-notebook-card strong {
+  font-size: 17px;
+}
+.new-notebook-card > span:last-child {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.notebook-card {
+  display: flex;
+  overflow: visible;
+  transition:
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.notebook-card:hover {
+  box-shadow: var(--shadow-panel);
+  transform: translateY(-2px);
+}
+
+.notebook-card-main {
+  display: flex;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  flex-direction: column;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+}
+
+.notebook-cover {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 132px;
+  padding: 20px;
+  align-items: flex-end;
+  overflow: hidden;
+  background: #e8ebfc;
+}
+
+.cover-0 {
+  background: #e3e9ff;
+}
+.cover-1 {
+  background: #dff4ea;
+}
+.cover-2 {
+  background: #f7e9dc;
+}
+.cover-3 {
+  background: #eee4f7;
+}
+
+:root[data-theme='dark'] .notebook-cover {
+  filter: brightness(0.7) saturate(0.75);
+}
+
+.notebook-emoji {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  font-size: 29px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 17px;
+  box-shadow: 0 8px 20px rgba(38, 43, 75, 0.12);
+}
+
+.cover-lines {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  width: 88px;
+  gap: 7px;
+  flex-direction: column;
+}
+
+.cover-lines i {
+  display: block;
+  height: 7px;
+  background: rgba(56, 64, 101, 0.12);
+  border-radius: 99px;
+}
+
+.cover-lines i:nth-child(2) {
+  width: 70%;
+  margin-left: auto;
+}
+.cover-lines i:nth-child(3) {
+  width: 86%;
+  margin-left: auto;
+}
+
+.notebook-card-copy {
+  display: flex;
+  padding: 18px 20px 20px;
+  gap: 8px;
+  flex-direction: column;
+}
+
+.notebook-card-copy strong {
+  min-height: 46px;
+  font-size: 17px;
+  line-height: 1.35;
+}
+.notebook-card-copy span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.notebook-menu-button {
+  position: absolute;
+  right: 8px;
+  bottom: 9px;
+}
+
+.context-menu {
+  position: absolute;
+  z-index: 30;
+  min-width: 178px;
+  padding: 7px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 34px rgba(31, 35, 53, 0.18);
+}
+
+.context-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+}
+
+.context-menu button:hover {
+  background: var(--surface-soft);
+}
+.context-menu .danger-menu-item {
+  color: var(--danger);
+}
+.notebook-card .context-menu {
+  right: 8px;
+  bottom: -43px;
+}
+
+.notebook-grid.list-view {
+  display: flex;
+  gap: 10px;
+  flex-direction: column;
+}
+.notebook-grid.list-view .new-notebook-card,
+.notebook-grid.list-view .notebook-card {
+  min-height: 88px;
+}
+.notebook-grid.list-view .new-notebook-card {
+  display: grid;
+  padding: 13px 56px 13px 14px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  justify-items: start;
+  gap: 2px 13px;
+  text-align: left;
+}
+.notebook-grid.list-view .new-notebook-icon {
+  grid-row: 1 / 3;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+}
+.notebook-grid.list-view .notebook-card-main {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  flex-direction: row;
+}
+.notebook-grid.list-view .notebook-cover {
+  height: 86px;
+  padding: 12px;
+}
+.notebook-grid.list-view .notebook-emoji {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  border-radius: 12px;
+}
+.notebook-grid.list-view .cover-lines {
+  top: 15px;
+  right: 13px;
+  width: 42px;
+  gap: 5px;
+}
+.notebook-grid.list-view .notebook-card-copy {
+  align-self: center;
+  padding: 12px 54px 12px 17px;
+}
+.notebook-grid.list-view .notebook-card-copy strong {
+  min-height: 0;
+}
+.notebook-grid.list-view .notebook-menu-button {
+  top: 24px;
+  right: 8px;
+  bottom: auto;
+}
+.notebook-grid.list-view .context-menu {
+  top: 65px;
+  bottom: auto;
+}
+
+.notebook-search-empty {
+  display: flex;
+  min-height: 224px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-muted);
+  flex-direction: column;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+}
+.notebook-search-empty strong {
+  color: var(--text);
+}
+.notebook-search-empty span {
+  font-size: 13px;
+}
+
+.home-footer {
+  position: absolute;
+  z-index: 1;
+  right: 28px;
+  bottom: 22px;
+  left: 28px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-faint);
+  font-size: 12px;
+}

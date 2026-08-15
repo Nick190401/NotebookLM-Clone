@@ -12,7 +12,11 @@ export const GROQ_MODELS = {
 }
 
 export class ProviderError extends Error {
-  constructor(message: string, readonly status: number, readonly retryAfter?: string) {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfter?: string,
+  ) {
     super(message)
   }
 }
@@ -29,7 +33,8 @@ function retryAfterSeconds(message: string, header: string | null) {
 
 function apiKey() {
   const key = Deno.env.get('GROQ_API_KEY')
-  if (!key) throw new HttpError('Groq is not configured. Set the GROQ_API_KEY Supabase secret.', 'AI_NOT_CONFIGURED', 503)
+  if (!key)
+    throw new HttpError('Groq is not configured. Set the GROQ_API_KEY Supabase secret.', 'AI_NOT_CONFIGURED', 503)
   return key
 }
 
@@ -48,7 +53,7 @@ export async function groqFetch(path: string, init: RequestInit) {
   if (!response.ok) {
     let message = `Groq returned HTTP ${response.status}.`
     try {
-      const body = await response.json() as { error?: { message?: string } }
+      const body = (await response.json()) as { error?: { message?: string } }
       message = body.error?.message || message
     } catch {
       // HTTP status remains the reliable error signal.
@@ -63,7 +68,71 @@ export function stripReasoning(value: string) {
   const withoutClosed = value.replace(/<think>[\s\S]*?<\/think>/gi, ' ')
   const openIndex = withoutClosed.search(/<think>/i)
   const cleaned = openIndex >= 0 ? withoutClosed.slice(0, openIndex) : withoutClosed
-  return cleaned.replace(/<\/?think>/gi, ' ').replace(/\n{3,}/g, '\n\n').trim()
+  return cleaned
+    .replace(/<\/?think>/gi, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+const OPEN_TAG = '<think>'
+const CLOSE_TAG = '</think>'
+
+function trailingPartialTagLength(value: string) {
+  const lowered = value.toLowerCase()
+  for (const tag of [CLOSE_TAG, OPEN_TAG]) {
+    for (let length = Math.min(tag.length - 1, lowered.length); length > 0; length -= 1) {
+      if (lowered.endsWith(tag.slice(0, length))) return length
+    }
+  }
+  return 0
+}
+
+/**
+ * Streaming counterpart to {@link stripReasoning}. Reasoning tags can be split
+ * across provider chunks, so a partial tag at the end of a chunk is withheld
+ * until the next one arrives instead of being forwarded to the reader.
+ */
+export function createReasoningFilter() {
+  let buffer = ''
+  let inside = false
+
+  const consume = (flush: boolean) => {
+    let output = ''
+    for (;;) {
+      const lowered = buffer.toLowerCase()
+      if (inside) {
+        const close = lowered.indexOf(CLOSE_TAG)
+        if (close < 0) {
+          buffer = flush ? '' : buffer.slice(Math.max(0, buffer.length - CLOSE_TAG.length))
+          return output
+        }
+        buffer = buffer.slice(close + CLOSE_TAG.length)
+        inside = false
+        continue
+      }
+      const open = lowered.indexOf(OPEN_TAG)
+      if (open >= 0) {
+        output += buffer.slice(0, open)
+        buffer = buffer.slice(open + OPEN_TAG.length)
+        inside = true
+        continue
+      }
+      const hold = flush ? 0 : trailingPartialTagLength(buffer)
+      output += hold ? buffer.slice(0, buffer.length - hold) : buffer
+      buffer = hold ? buffer.slice(buffer.length - hold) : ''
+      return output
+    }
+  }
+
+  return {
+    push(text: string) {
+      buffer += text
+      return consume(false)
+    },
+    flush() {
+      return consume(true)
+    },
+  }
 }
 
 export async function verifyGroqConfiguration() {
@@ -77,18 +146,38 @@ export async function verifyGroqConfiguration() {
 }
 
 function rateLimited(error: ProviderError) {
-  return error.status === 429
-    || error.status === 498
-    || (error.status === 413 && /per minute|TPM|RPM|rate limit/i.test(error.message))
+  return (
+    error.status === 429 ||
+    error.status === 498 ||
+    (error.status === 413 && /per minute|TPM|RPM|rate limit/i.test(error.message))
+  )
 }
 
 export function toGroqError(error: unknown) {
   if (error instanceof HttpError) return error
   if (error instanceof ProviderError) {
-    if (error.status === 401 || error.status === 403) return new HttpError('The Groq API key is invalid or unauthorized.', 'AI_AUTH_FAILED', 503)
-    if (rateLimited(error)) return new HttpError('The Groq rate limit has been reached. Please try again in a moment.', 'AI_RATE_LIMITED', 429, error.retryAfter)
-    if (error.status === 413) return new HttpError('The request is too large for the AI model. Select fewer sources.', 'AI_REQUEST_TOO_LARGE', 413)
-    if (error.status === 503 || error.status === 502) return new HttpError('Groq is temporarily unavailable. Please try again.', 'AI_UNAVAILABLE', 503, error.retryAfter)
+    if (error.status === 401 || error.status === 403)
+      return new HttpError('The Groq API key is invalid or unauthorized.', 'AI_AUTH_FAILED', 503)
+    if (rateLimited(error))
+      return new HttpError(
+        'The Groq rate limit has been reached. Please try again in a moment.',
+        'AI_RATE_LIMITED',
+        429,
+        error.retryAfter,
+      )
+    if (error.status === 413)
+      return new HttpError(
+        'The request is too large for the AI model. Select fewer sources.',
+        'AI_REQUEST_TOO_LARGE',
+        413,
+      )
+    if (error.status === 503 || error.status === 502)
+      return new HttpError(
+        'Groq is temporarily unavailable. Please try again.',
+        'AI_UNAVAILABLE',
+        503,
+        error.retryAfter,
+      )
     return new HttpError(`Groq could not process the request: ${error.message}`, 'AI_PROVIDER_ERROR', 502)
   }
   return new HttpError('The AI service is currently unavailable.', 'AI_UNAVAILABLE', 502)
@@ -103,19 +192,31 @@ function toBase64(bytes: Uint8Array) {
 }
 
 export async function analyzeImage(bytes: Uint8Array, mimeType: string) {
-  if (bytes.byteLength > 3_500_000) throw new HttpError('The image exceeds the 3.5 MB vision limit.', 'IMAGE_TOO_LARGE', 413)
+  if (bytes.byteLength > 3_500_000)
+    throw new HttpError('The image exceeds the 3.5 MB vision limit.', 'IMAGE_TOO_LARGE', 413)
   try {
     const response = await groqFetch('/chat/completions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: GROQ_MODELS.vision, temperature: 0.2, max_completion_tokens: 3_000,
-        messages: [{ role: 'user', content: [
-          { type: 'text', text: 'Extract all readable text (OCR), then describe diagrams, charts, objects, and their relationships in detail. Return plain source text, no JSON, and no commentary about the task itself.' },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${toBase64(bytes)}` } },
-        ] }],
+        model: GROQ_MODELS.vision,
+        temperature: 0.2,
+        max_completion_tokens: 3_000,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract all readable text (OCR), then describe diagrams, charts, objects, and their relationships in detail. Return plain source text, no JSON, and no commentary about the task itself.',
+              },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${toBase64(bytes)}` } },
+            ],
+          },
+        ],
       }),
     })
-    const body = await response.json() as { choices?: { message?: { content?: string; reasoning?: string } }[] }
+    const body = (await response.json()) as { choices?: { message?: { content?: string; reasoning?: string } }[] }
     const content = stripReasoning(body.choices?.[0]?.message?.content ?? '')
     if (!content) throw new HttpError('The image contains no recognizable content.', 'EMPTY_SOURCE', 422)
     return content
@@ -131,7 +232,7 @@ export async function transcribeAudio(bytes: Uint8Array, filename: string, mimeT
     form.set('model', GROQ_MODELS.transcription)
     form.set('response_format', 'json')
     const response = await groqFetch('/audio/transcriptions', { method: 'POST', body: form })
-    const body = await response.json() as { text?: string }
+    const body = (await response.json()) as { text?: string }
     const text = body.text?.trim()
     if (!text) throw new HttpError('The audio contains no transcribable speech.', 'EMPTY_SOURCE', 422)
     return text
@@ -143,17 +244,24 @@ export async function transcribeAudio(bytes: Uint8Array, filename: string, mimeT
 const SPEECH_CHUNK_LIMIT = 200
 
 export function splitSpeechChunks(text: string, limit = SPEECH_CHUNK_LIMIT) {
-  const sentences = text.replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]*\s*/g) ?? []
+  const sentences =
+    text
+      .replace(/\s+/g, ' ')
+      .trim()
+      .match(/[^.!?]+[.!?]*\s*/g) ?? []
   const chunks: string[] = []
   let current = ''
-  const push = () => { if (current.trim()) chunks.push(current.trim()); current = '' }
+  const push = () => {
+    if (current.trim()) chunks.push(current.trim())
+    current = ''
+  }
 
   for (const sentence of sentences) {
     if (sentence.trim().length > limit) {
       push()
       let word_buffer = ''
       for (const word of sentence.trim().split(' ')) {
-        if ((`${word_buffer} ${word}`).trim().length > limit) {
+        if (`${word_buffer} ${word}`.trim().length > limit) {
           if (word_buffer.trim()) chunks.push(word_buffer.trim())
           word_buffer = word.slice(0, limit)
         } else {
@@ -197,7 +305,8 @@ export async function synthesizeSpeech(text: string, voice: string) {
     const parts: Uint8Array[] = []
     for (const chunk of chunks) {
       const response = await groqFetch('/audio/speech', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: chunk, model: GROQ_MODELS.speech, voice, response_format: 'wav' }),
       })
       parts.push(new Uint8Array(await response.arrayBuffer()))

@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 
 const url = process.env.VITE_SUPABASE_URL
 const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
-if (!url || !key) throw new Error('Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env before verification.')
+if (!url || !key)
+  throw new Error('Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env before verification.')
 
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } }
 const primary = createClient(url, key, clientOptions)
@@ -10,7 +11,8 @@ const isolated = createClient(url, key, clientOptions)
 const verificationId = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
 const notebookId = `verification-notebook-${verificationId}`
 const sourceId = `verification-source-${verificationId}`
-const sourceContent = 'The NotebookLM Supabase deployment verification code is AURORA-731. It was approved on 14 August 2026.'
+const sourceContent =
+  'The NotebookLM Supabase deployment verification code is AURORA-731. It was approved on 14 August 2026.'
 let primaryAuthenticated = false
 let isolatedAuthenticated = false
 
@@ -36,15 +38,23 @@ async function functionErrorMessage(error) {
   if (!error) return 'unknown function error'
   const response = error.context
   if (!(response instanceof Response)) return error.message || String(error)
-  const body = await response.clone().text().catch(() => '')
+  const body = await response
+    .clone()
+    .text()
+    .catch(() => '')
   return `${error.message || 'Function request failed'} (HTTP ${response.status})${body ? `: ${body.slice(0, 2_000)}` : ''}`
 }
 
 async function rateLimitDelay(error) {
   const response = error?.context
   if (!(response instanceof Response) || response.status !== 429) return 0
-  const body = await response.clone().text().catch(() => '')
-  const retryAfter = Number.parseFloat(response.headers.get('retry-after') || JSON.parse(body || '{}')?.error?.retryAfter || '')
+  const body = await response
+    .clone()
+    .text()
+    .catch(() => '')
+  const retryAfter = Number.parseFloat(
+    response.headers.get('retry-after') || JSON.parse(body || '{}')?.error?.retryAfter || '',
+  )
   return Math.min(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : 5_000, 30_000)
 }
 
@@ -68,21 +78,31 @@ try {
     id: notebookId,
     title: 'Remote verification notebook',
     emoji: '🔎',
-    sources: [{
-      id: sourceId,
-      title: 'Deployment evidence',
-      kind: 'text',
-      origin: 'remote-verifier',
-      content: sourceContent,
-      summary: 'A deterministic deployment fact.',
-      topics: ['verification', 'supabase'],
-      label: 'Deployment checks',
-      selected: true,
-      createdAt: now,
-    }],
+    sources: [
+      {
+        id: sourceId,
+        title: 'Deployment evidence',
+        kind: 'text',
+        origin: 'remote-verifier',
+        content: sourceContent,
+        summary: 'A deterministic deployment fact.',
+        topics: ['verification', 'supabase'],
+        label: 'Deployment checks',
+        selected: true,
+        createdAt: now,
+      },
+    ],
     messages: [],
     artifacts: [],
-    notes: [{ id: `verification-note-${verificationId}`, title: 'Deployment check', body: 'Temporary and removed.', createdAt: now, locked: false }],
+    notes: [
+      {
+        id: `verification-note-${verificationId}`,
+        title: 'Deployment check',
+        body: 'Temporary and removed.',
+        createdAt: now,
+        locked: false,
+      },
+    ],
     chatConfig: { style: 'Default', length: 'Shorter', instructions: '' },
     createdAt: now,
     updatedAt: now,
@@ -101,8 +121,12 @@ try {
 
   const workspace = await requireWorkspace(primary, 'Primary')
   const savedNotebook = workspace.notebooks.find((notebook) => notebook.id === notebookId)
-  if (!savedNotebook || savedNotebook.sources?.[0]?.content !== sourceContent
-    || savedNotebook.sources?.[0]?.label !== 'Deployment checks' || savedNotebook.notes?.length !== 1) {
+  if (
+    !savedNotebook ||
+    savedNotebook.sources?.[0]?.content !== sourceContent ||
+    savedNotebook.sources?.[0]?.label !== 'Deployment checks' ||
+    savedNotebook.notes?.length !== 1
+  ) {
     throw new Error('Save/load round trip returned an incomplete notebook snapshot.')
   }
   if (workspace.settings?.theme !== 'dark') throw new Error('Settings round trip did not preserve the RLS write.')
@@ -118,19 +142,27 @@ try {
   await requireAnonymousSession(isolated, 'Isolated')
   isolatedAuthenticated = true
   const isolatedWorkspace = await requireWorkspace(isolated, 'Isolated')
-  if (isolatedWorkspace.notebooks.length !== 0) throw new Error('RLS isolation failed: another user can see the verification notebook.')
+  if (isolatedWorkspace.notebooks.length !== 0)
+    throw new Error('RLS isolation failed: another user can see the verification notebook.')
 
   const { data: leakedSources, error: isolatedSourceError } = await isolated.rpc('load_ai_sources', {
     requested_notebook_id: notebookId,
     requested_source_ids: [sourceId],
   })
   if (isolatedSourceError || !Array.isArray(leakedSources) || leakedSources.length !== 0) {
-    throw new Error(`RLS source isolation failed: ${isolatedSourceError?.message || 'another user received source rows'}`)
+    throw new Error(
+      `RLS source isolation failed: ${isolatedSourceError?.message || 'another user received source rows'}`,
+    )
   }
 
-  const { data: isolatedRows, error: isolatedRowsError } = await isolated.from('notebooks').select('id').eq('id', notebookId)
+  const { data: isolatedRows, error: isolatedRowsError } = await isolated
+    .from('notebooks')
+    .select('id')
+    .eq('id', notebookId)
   if (isolatedRowsError || isolatedRows?.length !== 0) {
-    throw new Error(`Direct-table RLS isolation failed: ${isolatedRowsError?.message || 'another user received notebook rows'}`)
+    throw new Error(
+      `Direct-table RLS isolation failed: ${isolatedRowsError?.message || 'another user received notebook rows'}`,
+    )
   }
 
   const { data: fullShare, error: fullShareError } = await primary.rpc('set_notebook_sharing', {
@@ -138,19 +170,26 @@ try {
     requested_access: 'full',
   })
   if (fullShareError || fullShare?.access !== 'full' || typeof fullShare?.token !== 'string') {
-    throw new Error(`Full-notebook sharing could not be enabled: ${fullShareError?.message || 'invalid sharing response'}`)
+    throw new Error(
+      `Full-notebook sharing could not be enabled: ${fullShareError?.message || 'invalid sharing response'}`,
+    )
   }
   const shareToken = fullShare.token
 
   const { data: fullSharedNotebook, error: fullSharedNotebookError } = await isolated.rpc('load_shared_notebook', {
     requested_share_token: shareToken,
   })
-  if (fullSharedNotebookError || fullSharedNotebook?.access !== 'full'
-    || fullSharedNotebook?.notebook?.sources?.[0]?.content !== sourceContent
-    || fullSharedNotebook?.notebook?.sources?.[0]?.label !== 'Deployment checks'
-    || fullSharedNotebook?.notebook?.messages?.length !== 0
-    || fullSharedNotebook?.notebook?.notes?.length !== 1) {
-    throw new Error(`Full shared snapshot failed its access contract: ${fullSharedNotebookError?.message || 'unexpected shared payload'}`)
+  if (
+    fullSharedNotebookError ||
+    fullSharedNotebook?.access !== 'full' ||
+    fullSharedNotebook?.notebook?.sources?.[0]?.content !== sourceContent ||
+    fullSharedNotebook?.notebook?.sources?.[0]?.label !== 'Deployment checks' ||
+    fullSharedNotebook?.notebook?.messages?.length !== 0 ||
+    fullSharedNotebook?.notebook?.notes?.length !== 1
+  ) {
+    throw new Error(
+      `Full shared snapshot failed its access contract: ${fullSharedNotebookError?.message || 'unexpected shared payload'}`,
+    )
   }
 
   const { data: sharedAiSources, error: sharedAiSourcesError } = await isolated.rpc('load_shared_ai_sources', {
@@ -159,7 +198,9 @@ try {
     requested_source_ids: [sourceId],
   })
   if (sharedAiSourcesError || sharedAiSources?.[0]?.content !== sourceContent) {
-    throw new Error(`Token-bound shared AI source RPC failed: ${sharedAiSourcesError?.message || 'source content was unavailable'}`)
+    throw new Error(
+      `Token-bound shared AI source RPC failed: ${sharedAiSourcesError?.message || 'source content was unavailable'}`,
+    )
   }
 
   const { data: chatShare, error: chatShareError } = await primary.rpc('set_notebook_sharing', {
@@ -167,54 +208,90 @@ try {
     requested_access: 'chat',
   })
   if (chatShareError || chatShare?.token !== shareToken || chatShare?.access !== 'chat') {
-    throw new Error(`Chat-only sharing could not be enabled: ${chatShareError?.message || 'token unexpectedly changed'}`)
+    throw new Error(
+      `Chat-only sharing could not be enabled: ${chatShareError?.message || 'token unexpectedly changed'}`,
+    )
   }
   const { data: chatSharedNotebook, error: chatSharedNotebookError } = await isolated.rpc('load_shared_notebook', {
     requested_share_token: shareToken,
   })
-  if (chatSharedNotebookError || chatSharedNotebook?.access !== 'chat'
-    || chatSharedNotebook?.notebook?.sources?.[0]?.content !== ''
-    || chatSharedNotebook?.notebook?.sources?.[0]?.label !== ''
-    || chatSharedNotebook?.notebook?.notes?.length !== 0
-    || chatSharedNotebook?.notebook?.artifacts?.length !== 0) {
-    throw new Error(`Chat-only shared snapshot leaked private material: ${chatSharedNotebookError?.message || 'unexpected shared payload'}`)
+  if (
+    chatSharedNotebookError ||
+    chatSharedNotebook?.access !== 'chat' ||
+    chatSharedNotebook?.notebook?.sources?.[0]?.content !== '' ||
+    chatSharedNotebook?.notebook?.sources?.[0]?.label !== '' ||
+    chatSharedNotebook?.notebook?.notes?.length !== 0 ||
+    chatSharedNotebook?.notebook?.artifacts?.length !== 0
+  ) {
+    throw new Error(
+      `Chat-only shared snapshot leaked private material: ${chatSharedNotebookError?.message || 'unexpected shared payload'}`,
+    )
   }
 
   const { error: isolatedFunctionError } = await invokeFunction(isolated, 'notebook-ai', {
     body: {
-      action: 'chat', notebookId, sourceIds: [sourceId], message: 'What is the verification code?', history: [],
-      config: { style: 'Default', length: 'Shorter', instructions: '' }, language: 'English',
+      action: 'chat',
+      notebookId,
+      sourceIds: [sourceId],
+      message: 'What is the verification code?',
+      history: [],
+      config: { style: 'Default', length: 'Shorter', instructions: '' },
+      language: 'English',
     },
   })
-  if (!isolatedFunctionError) throw new Error('Notebook AI did not reject another user\'s source ID.')
+  if (!isolatedFunctionError) throw new Error("Notebook AI did not reject another user's source ID.")
 
-  const { data: status, error: statusError } = await invokeFunction(primary, 'notebook-ai', { body: { action: 'status' } })
+  const { data: status, error: statusError } = await invokeFunction(primary, 'notebook-ai', {
+    body: { action: 'status' },
+  })
   if (statusError || !status?.configured) {
-    throw new Error(`Notebook AI status failed: ${statusError ? await functionErrorMessage(statusError) : 'Groq is not configured'}`)
+    throw new Error(
+      `Notebook AI status failed: ${statusError ? await functionErrorMessage(statusError) : 'Groq is not configured'}`,
+    )
   }
 
   const { data: research, error: researchError } = await invokeFunction(primary, 'notebook-ai', {
     body: {
       action: 'research',
-      query: 'What are the current hosted Supabase Edge Functions runtime limits? Prefer official Supabase documentation.',
+      query:
+        'What are the current hosted Supabase Edge Functions runtime limits? Prefer official Supabase documentation.',
       language: 'English',
     },
   })
-  if (researchError || typeof research?.report !== 'string' || research.report.length < 200
-    || !Array.isArray(research?.results) || research.results.length < 1
-    || !research.results.every((result) => typeof result.url === 'string' && result.url.startsWith('http'))
-    || research.toolCount < 2) {
-    throw new Error(`Deep Research failed: ${researchError ? await functionErrorMessage(researchError) : 'report or tool-backed sources were incomplete'}`)
+  if (
+    researchError ||
+    typeof research?.report !== 'string' ||
+    research.report.length < 200 ||
+    !Array.isArray(research?.results) ||
+    research.results.length < 1 ||
+    !research.results.every((result) => typeof result.url === 'string' && result.url.startsWith('http')) ||
+    research.toolCount < 2
+  ) {
+    throw new Error(
+      `Deep Research failed: ${researchError ? await functionErrorMessage(researchError) : 'report or tool-backed sources were incomplete'}`,
+    )
   }
 
   const { data: sharedChat, error: sharedChatError } = await invokeFunction(isolated, 'notebook-ai', {
     body: {
-      action: 'chat', notebookId, sourceIds: [sourceId], shareToken, message: 'What is the deployment verification code?', history: [],
-      config: { style: 'Default', length: 'Shorter', instructions: '' }, language: 'English',
+      action: 'chat',
+      notebookId,
+      sourceIds: [sourceId],
+      shareToken,
+      message: 'What is the deployment verification code?',
+      history: [],
+      config: { style: 'Default', length: 'Shorter', instructions: '' },
+      language: 'English',
     },
   })
-  if (sharedChatError || !sharedChat?.content?.includes('AURORA-731') || sharedChat?.citations?.[0]?.sourceId !== sourceId) {
-    throw new Error(`Shared grounded Groq chat failed: ${sharedChatError ? await functionErrorMessage(sharedChatError) : 'answer or citation was not grounded'}`)
+  if (
+    sharedChatError ||
+    !sharedChat?.content?.includes('AURORA-731') ||
+    sharedChat?.citations?.[0]?.sourceId !== sourceId
+  ) {
+    throw new Error(
+      `Shared grounded Groq chat failed: ${sharedChatError ? await functionErrorMessage(sharedChatError) : 'answer or citation was not grounded'}`,
+    )
   }
 
   const { error: revokeError } = await primary.rpc('set_notebook_sharing', {
@@ -231,44 +308,103 @@ try {
 
   const { data: chat, error: chatError } = await invokeFunction(primary, 'notebook-ai', {
     body: {
-      action: 'chat', notebookId, sourceIds: [sourceId], message: 'What is the deployment verification code?', history: [],
-      config: { style: 'Default', length: 'Shorter', instructions: '' }, language: 'English',
+      action: 'chat',
+      notebookId,
+      sourceIds: [sourceId],
+      message: 'What is the deployment verification code?',
+      history: [],
+      config: { style: 'Default', length: 'Shorter', instructions: '' },
+      language: 'English',
     },
   })
   if (chatError || !chat?.content?.includes('AURORA-731') || chat?.citations?.[0]?.sourceId !== sourceId) {
-    throw new Error(`Grounded Groq chat failed: ${chatError ? await functionErrorMessage(chatError) : 'answer or citation was not grounded'}`)
+    throw new Error(
+      `Grounded Groq chat failed: ${chatError ? await functionErrorMessage(chatError) : 'answer or citation was not grounded'}`,
+    )
   }
 
   const { data: studioArtifact, error: studioArtifactError } = await invokeFunction(primary, 'notebook-ai', {
     body: {
-      action: 'artifact', notebookId, sourceIds: [sourceId], type: 'report',
+      action: 'artifact',
+      notebookId,
+      sourceIds: [sourceId],
+      type: 'report',
       config: { focus: 'The verification code and approval date', language: 'English', format: 'Briefing document' },
     },
   })
-  if (studioArtifactError || !studioArtifact?.content?.summary
-    || !Array.isArray(studioArtifact.content.sections) || studioArtifact.content.sections.length < 2
-    || !studioArtifact.content.sections.every((section) => section.sourceIds?.every((id) => id === sourceId))) {
-    throw new Error(`Studio artifact generation failed: ${studioArtifactError ? await functionErrorMessage(studioArtifactError) : 'report content was incomplete or ungrounded'}`)
+  if (
+    studioArtifactError ||
+    !studioArtifact?.content?.summary ||
+    !Array.isArray(studioArtifact.content.sections) ||
+    studioArtifact.content.sections.length < 2 ||
+    !studioArtifact.content.sections.every((section) => section.sourceIds?.every((id) => id === sourceId))
+  ) {
+    throw new Error(
+      `Studio artifact generation failed: ${studioArtifactError ? await functionErrorMessage(studioArtifactError) : 'report content was incomplete or ungrounded'}`,
+    )
   }
 
+  const { data: quota, error: quotaError } = await primary.rpc('consume_ai_quota', { requested_bucket: 'discover' })
+  if (
+    quotaError ||
+    quota?.allowed !== true ||
+    typeof quota?.remaining !== 'number' ||
+    typeof quota?.limit !== 'number'
+  ) {
+    throw new Error(`AI quota RPC is not deployed correctly: ${quotaError?.message || 'unexpected decision payload'}`)
+  }
+  const { error: quotaReadError } = await primary.from('ai_quota_counters').select('request_count').limit(1)
+  if (!quotaReadError) throw new Error('Deployed quota counters are readable by an authenticated caller.')
+
   const form = new FormData()
-  form.set('file', new File(['Non-persistent deployment verification source.'], 'verification.txt', { type: 'text/plain' }))
+  form.set(
+    'file',
+    new File(['Non-persistent deployment verification source.'], 'verification.txt', { type: 'text/plain' }),
+  )
   const { data: imported, error: importError } = await invokeFunction(primary, 'source-import', { body: form })
   if (importError || imported?.imported?.content !== 'Non-persistent deployment verification source.') {
-    throw new Error(`Source import function failed: ${importError ? await functionErrorMessage(importError) : 'unexpected extraction result'}`)
+    throw new Error(
+      `Source import function failed: ${importError ? await functionErrorMessage(importError) : 'unexpected extraction result'}`,
+    )
   }
 
   await clearWorkspace(primary, 'Primary')
   primaryAuthenticated = false
   const clearedWorkspace = await requireWorkspace(primary, 'Cleared')
-  if (clearedWorkspace.notebooks.length !== 0) throw new Error('Workspace cleanup did not remove the verification notebook.')
+  if (clearedWorkspace.notebooks.length !== 0)
+    throw new Error('Workspace cleanup did not remove the verification notebook.')
 
-  console.log(JSON.stringify({
-    anonymousAuth: 'ok', snapshotRoundTrip: 'ok', sourceLabels: 'ok', settingsRoundTrip: 'ok', rlsIsolation: 'ok',
-    aiSourceRpc: 'ok', publicSharing: 'ok', sharedGroundedChat: 'ok', notebookAiFunction: 'ok', deepResearch: 'ok', groundedGroqChat: 'ok', studioArtifact: 'ok', sourceImportFunction: 'ok', cleanup: 'ok',
-    groqConfigured: true, primaryModel: status.primaryModel ?? null, researchModel: research.model ?? null, responseModel: chat.model ?? null, artifactModel: studioArtifact.model ?? null,
-  }, null, 2))
+  console.log(
+    JSON.stringify(
+      {
+        anonymousAuth: 'ok',
+        snapshotRoundTrip: 'ok',
+        sourceLabels: 'ok',
+        settingsRoundTrip: 'ok',
+        rlsIsolation: 'ok',
+        aiSourceRpc: 'ok',
+        publicSharing: 'ok',
+        sharedGroundedChat: 'ok',
+        notebookAiFunction: 'ok',
+        deepResearch: 'ok',
+        groundedGroqChat: 'ok',
+        studioArtifact: 'ok',
+        sourceImportFunction: 'ok',
+        aiQuota: 'ok',
+        cleanup: 'ok',
+        groqConfigured: true,
+        primaryModel: status.primaryModel ?? null,
+        researchModel: research.model ?? null,
+        responseModel: chat.model ?? null,
+        artifactModel: studioArtifact.model ?? null,
+      },
+      null,
+      2,
+    ),
+  )
 } finally {
-  if (primaryAuthenticated) await clearWorkspace(primary, 'Primary finalizer').catch((error) => console.error(error.message))
-  if (isolatedAuthenticated) await clearWorkspace(isolated, 'Isolated finalizer').catch((error) => console.error(error.message))
+  if (primaryAuthenticated)
+    await clearWorkspace(primary, 'Primary finalizer').catch((error) => console.error(error.message))
+  if (isolatedAuthenticated)
+    await clearWorkspace(isolated, 'Isolated finalizer').catch((error) => console.error(error.message))
 }
