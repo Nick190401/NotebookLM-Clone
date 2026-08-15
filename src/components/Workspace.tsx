@@ -1,7 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
-  Check,
   ChevronDown,
   Copy,
   Globe2,
@@ -75,6 +74,23 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
   const [sourceResearchMode, setSourceResearchMode] = useState<ResearchMode>('fast')
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [copying, setCopying] = useState(false)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!emojiMenuOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!emojiPickerRef.current?.contains(event.target as Node)) setEmojiMenuOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEmojiMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [emojiMenuOpen])
 
   const update = (recipe: (current: Notebook) => Notebook) => {
     return onUpdate((current) => readOnly ? recipe(current) : { ...recipe(current), updatedAt: Date.now() })
@@ -216,9 +232,9 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
           <button className="icon-button back-button" type="button" onClick={onBack} aria-label="Back to notebooks"><ArrowLeft size={20} /></button>
           <Brand compact />
           <div className="notebook-title-group">
-            {readOnly ? <span className="notebook-emoji-button read-only" aria-hidden="true">{notebook.emoji}</span> : <div className="emoji-picker-wrap">
-              <button className="notebook-emoji-button" type="button" onClick={() => setEmojiMenuOpen(!emojiMenuOpen)} aria-label="Change notebook emoji">{notebook.emoji}<ChevronDown size={12} /></button>
-              {emojiMenuOpen && <div className="emoji-menu">{emojiOptions.map((emoji) => <button type="button" key={emoji} onClick={() => { update((current) => ({ ...current, emoji })); setEmojiMenuOpen(false) }}>{emoji}</button>)}</div>}
+            {readOnly ? <span className="notebook-emoji-button read-only" aria-hidden="true">{notebook.emoji}</span> : <div className="emoji-picker-wrap" ref={emojiPickerRef}>
+              <button className="notebook-emoji-button" type="button" aria-haspopup="menu" aria-expanded={emojiMenuOpen} onClick={() => setEmojiMenuOpen(!emojiMenuOpen)} aria-label="Change notebook emoji">{notebook.emoji}<ChevronDown size={12} /></button>
+              {emojiMenuOpen && <div className="emoji-menu" role="menu" aria-label="Notebook emoji">{emojiOptions.map((emoji) => <button type="button" key={emoji} role="menuitemradio" aria-checked={notebook.emoji === emoji} className={notebook.emoji === emoji ? 'active' : ''} onClick={() => { update((current) => ({ ...current, emoji })); setEmojiMenuOpen(false) }}>{emoji}</button>)}</div>}
             </div>}
             {!readOnly && titleEditing ? (
               <input
@@ -229,7 +245,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
                 onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') setTitleEditing(false) }}
               />
             ) : readOnly ? <span className="notebook-title-button read-only">{notebook.title}</span> : <button className="notebook-title-button" type="button" onClick={() => setTitleEditing(true)}>{notebook.title}</button>}
-            <span className="saved-state">{readOnly ? <><Globe2 size={12} /> Read only</> : <><Check size={12} /> Supabase</>}</span>
+            {readOnly && <span className="saved-state"><Globe2 size={12} /> Read only</span>}
           </div>
         </div>
         <div className="workspace-actions">

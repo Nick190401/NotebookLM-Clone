@@ -741,21 +741,21 @@ select {
 .emoji-menu {
   position: absolute;
   z-index: 50;
-  top: 43px;
+  top: calc(100% + 8px);
   left: 0;
   display: grid;
-  width: 156px;
-  padding: 8px;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3px;
+  padding: 7px;
+  grid-template-columns: repeat(4, 38px);
+  gap: 4px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(30, 34, 50, 0.16);
 }
 
-.emoji-menu button { height: 34px; font-size: 19px; background: transparent; border: 0; border-radius: 7px; }
+.emoji-menu button { height: 38px; font-size: 20px; background: transparent; border: 1px solid transparent; border-radius: 9px; }
 .emoji-menu button:hover { background: var(--surface-soft); }
+.emoji-menu button.active { background: var(--blue-soft); border-color: var(--blue); }
 
 .notebook-title-button,
 .notebook-title-input {
@@ -1456,6 +1456,9 @@ select {
 .continuity-account svg { color: var(--blue-strong); }
 .continuity-line { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 7px; color: var(--blue-strong); }
 .continuity-line i { height: 1px; background: color-mix(in srgb, var(--blue) 40%, var(--line)); }
+
+.auth-back-row { display: flex; margin: 16px 24px 0; }
+.auth-back-row .text-button { min-height: 34px; padding: 0 7px; color: var(--blue-strong); }
 
 .auth-copy { margin: 18px 24px 0; }
 .auth-copy h3 { margin: 0 0 4px; font-family: 'Manrope', sans-serif; font-size: 15px; }

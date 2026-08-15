@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { CheckCircle2, KeyRound, LockKeyhole, LogIn, LogOut, Mail, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, KeyRound, LockKeyhole, LogIn, LogOut, Mail, ShieldCheck, TriangleAlert } from 'lucide-react'
 import type { AccountIdentity } from '../lib/repository'
 import { Modal } from './Modal'
 
-type GuestMode = 'upgrade' | 'sign-in'
+type GuestMode = 'upgrade' | 'sign-in' | 'reset'
 type AccountPrompt = 'confirmed' | 'recovery' | null
 
 interface AuthDialogProps {
@@ -83,9 +83,10 @@ export function AuthDialog({
     })
   }
 
-  const sendReset = () => {
+  const submitReset = (event: FormEvent) => {
+    event.preventDefault()
     const address = email.trim()
-    if (!address) return setError('Enter your email before requesting a password reset.')
+    if (!address) return setError('Enter the email address of your account.')
     void run(async () => {
       await onSendPasswordReset(address)
       setSuccess(`Password reset instructions sent to ${address}.`)
@@ -133,19 +134,38 @@ export function AuthDialog({
   }
 
   return (
-    <Modal open={open} onClose={close} title={guestMode === 'upgrade' ? 'Save this workspace' : 'Sign in'} description="Connect your NotebookLM workspace to a permanent Supabase account." className="auth-modal">
+    <Modal
+      open={open}
+      onClose={close}
+      title={guestMode === 'reset' ? 'Reset password' : guestMode === 'upgrade' ? 'Save this workspace' : 'Sign in'}
+      description={guestMode === 'reset' ? 'We email you a link to choose a new password. No password needed on this step.' : 'Connect your NotebookLM workspace to a permanent Supabase account.'}
+      className="auth-modal"
+    >
       {prompt && (
         <div className="auth-callout warning" role="alert">
           <TriangleAlert size={19} />
           <div><strong>Account link could not be applied</strong><span>This link may be expired or already used. Request a new confirmation or password reset email.</span></div>
         </div>
       )}
-      <div className="auth-mode-switch" role="tablist" aria-label="Account action">
-        <button type="button" role="tab" aria-selected={guestMode === 'upgrade'} className={guestMode === 'upgrade' ? 'active' : ''} onClick={() => { setGuestMode('upgrade'); resetFeedback() }}>Create account</button>
-        <button type="button" role="tab" aria-selected={guestMode === 'sign-in'} className={guestMode === 'sign-in' ? 'active' : ''} onClick={() => { setGuestMode('sign-in'); resetFeedback() }}>Sign in</button>
-      </div>
+      {guestMode !== 'reset' && (
+        <div className="auth-mode-switch" role="tablist" aria-label="Account action">
+          <button type="button" role="tab" aria-selected={guestMode === 'upgrade'} className={guestMode === 'upgrade' ? 'active' : ''} onClick={() => { setGuestMode('upgrade'); resetFeedback() }}>Create account</button>
+          <button type="button" role="tab" aria-selected={guestMode === 'sign-in'} className={guestMode === 'sign-in' ? 'active' : ''} onClick={() => { setGuestMode('sign-in'); resetFeedback() }}>Sign in</button>
+        </div>
+      )}
 
-      {guestMode === 'upgrade' ? (
+      {guestMode === 'reset' ? (
+        <>
+          <div className="auth-back-row">
+            <button className="text-button" type="button" onClick={() => { setGuestMode('sign-in'); resetFeedback() }}><ArrowLeft size={16} /> Back to sign in</button>
+          </div>
+          <div className="auth-copy"><h3>Send a recovery link</h3><p>Enter the email address of your account. The link in that email lets you set a new password.</p></div>
+          <form className="auth-form" onSubmit={submitReset}>
+            <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" autoFocus required /></label>
+            <button className="primary-button" type="submit" disabled={busy}><Mail size={17} />{busy ? 'Sending…' : 'Send reset link'}</button>
+          </form>
+        </>
+      ) : guestMode === 'upgrade' ? (
         <>
           <div className="workspace-continuity">
             <span className="continuity-count" aria-label={`${notebookCount} guest notebook${notebookCount === 1 ? '' : 's'}`}><strong>{notebookCount}</strong><small>guest notebook{notebookCount === 1 ? '' : 's'}</small></span>
@@ -165,7 +185,7 @@ export function AuthDialog({
             <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>
             <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
             {notebookCount > 0 && <label className="auth-confirm"><input type="checkbox" checked={switchConfirmed} onChange={(event) => setSwitchConfirmed(event.target.checked)} /><span>I understand this switches away from the current guest notebooks.</span></label>}
-            <div className="auth-submit-row"><button className="text-button" type="button" disabled={busy} onClick={sendReset}>Forgot password?</button><button className="primary-button" type="submit" disabled={busy}><LogIn size={17} />{busy ? 'Signing in…' : 'Sign in'}</button></div>
+            <div className="auth-submit-row"><button className="text-button" type="button" disabled={busy} onClick={() => { setGuestMode('reset'); resetFeedback() }}>Forgot password?</button><button className="primary-button" type="submit" disabled={busy}><LogIn size={17} />{busy ? 'Signing in…' : 'Sign in'}</button></div>
           </form>
         </>
       )}

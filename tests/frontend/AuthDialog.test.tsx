@@ -68,7 +68,7 @@ describe('Account dialog', () => {
     expect(await screen.findByText('Your password has been updated.')).toBeInTheDocument()
   })
 
-  it('requests password recovery from the sign-in flow', async () => {
+  it('opens a dedicated reset step that keeps the typed email and asks only for it', async () => {
     const user = userEvent.setup()
     const onSendPasswordReset = vi.fn().mockResolvedValue(undefined)
     render(<AuthDialog {...props({ onSendPasswordReset })} />)
@@ -77,7 +77,24 @@ describe('Account dialog', () => {
     await user.type(screen.getByLabelText('Email address'), 'person@example.com')
     await user.click(screen.getByRole('button', { name: 'Forgot password?' }))
 
+    expect(screen.getByRole('heading', { name: 'Reset password' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Email address')).toHaveValue('person@example.com')
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    expect(onSendPasswordReset).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Send reset link' }))
     expect(onSendPasswordReset).toHaveBeenCalledWith('person@example.com')
     expect(await screen.findByText('Password reset instructions sent to person@example.com.')).toBeInTheDocument()
+  })
+
+  it('returns to sign-in from the reset step', async () => {
+    const user = userEvent.setup()
+    render(<AuthDialog {...props()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Sign in' }))
+    await user.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await user.click(screen.getByRole('button', { name: 'Back to sign in' }))
+
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 })
