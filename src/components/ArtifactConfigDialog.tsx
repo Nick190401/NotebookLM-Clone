@@ -93,7 +93,7 @@ export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: Ar
       </label>
 
       <label className="config-label">
-        What should the AI hosts focus on? <span>optional</span>
+        {type === 'audio' || type === 'video' ? 'What should the AI hosts focus on?' : `What should this ${definition.shortLabel.toLowerCase()} focus on?`} <span>optional</span>
         <textarea
           rows={4}
           value={draft.focus}

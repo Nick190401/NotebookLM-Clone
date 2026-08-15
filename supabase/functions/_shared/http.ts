@@ -33,6 +33,7 @@ export function jsonResponse(data: unknown, status = 200, headers: HeadersInit =
 
 export function errorResponse(error: unknown) {
   if (error instanceof HttpError) {
+    console.error('Request failed', JSON.stringify({ code: error.code, status: error.status, message: error.message }))
     const headers = error.retryAfter ? { 'Retry-After': error.retryAfter } : undefined
     return jsonResponse({ error: { code: error.code, message: error.message, retryAfter: error.retryAfter } }, error.status, headers)
   }

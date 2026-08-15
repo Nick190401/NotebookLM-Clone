@@ -63,7 +63,8 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    void (async () => {
+    let retried = false
+    const load = async (): Promise<void> => {
       try {
         const activeAccount = await repository.ensureSession()
         const sharedRoute = sharedRouteFromHash()
@@ -91,10 +92,17 @@ export default function App() {
         void getAiStatus().then(setAiStatus).catch(() => setAiStatus(null))
       } catch (caught) {
         if (cancelled) return
+        if (!retried) {
+          retried = true
+          await new Promise((resolve) => setTimeout(resolve, 400))
+          if (!cancelled) return void load()
+          return
+        }
         setLoadError(caught instanceof Error ? caught.message : 'The Supabase workspace could not be loaded.')
         setLoading(false)
       }
-    })()
+    }
+    void load()
     return () => { cancelled = true }
   }, [loadAttempt])
 

@@ -40,6 +40,24 @@ async function functionErrorMessage(error) {
   return `${error.message || 'Function request failed'} (HTTP ${response.status})${body ? `: ${body.slice(0, 2_000)}` : ''}`
 }
 
+async function rateLimitDelay(error) {
+  const response = error?.context
+  if (!(response instanceof Response) || response.status !== 429) return 0
+  const body = await response.clone().text().catch(() => '')
+  const retryAfter = Number.parseFloat(response.headers.get('retry-after') || JSON.parse(body || '{}')?.error?.retryAfter || '')
+  return Math.min(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1_000 : 5_000, 30_000)
+}
+
+async function invokeFunction(client, name, options, attempts = 4) {
+  for (let attempt = 1; ; attempt += 1) {
+    const result = await client.functions.invoke(name, options)
+    const delay = attempt < attempts ? await rateLimitDelay(result.error) : 0
+    if (!delay) return result
+    console.log(`  rate limited by Groq, waiting ${Math.round(delay / 1_000)}s before retrying ${name}…`)
+    await new Promise((resolve) => setTimeout(resolve, delay))
+  }
+}
+
 try {
   const primaryUser = await requireAnonymousSession(primary, 'Primary')
   primaryAuthenticated = true
@@ -162,7 +180,7 @@ try {
     throw new Error(`Chat-only shared snapshot leaked private material: ${chatSharedNotebookError?.message || 'unexpected shared payload'}`)
   }
 
-  const { error: isolatedFunctionError } = await isolated.functions.invoke('notebook-ai', {
+  const { error: isolatedFunctionError } = await invokeFunction(isolated, 'notebook-ai', {
     body: {
       action: 'chat', notebookId, sourceIds: [sourceId], message: 'What is the verification code?', history: [],
       config: { style: 'Default', length: 'Shorter', instructions: '' }, language: 'English',
@@ -170,12 +188,12 @@ try {
   })
   if (!isolatedFunctionError) throw new Error('Notebook AI did not reject another user\'s source ID.')
 
-  const { data: status, error: statusError } = await primary.functions.invoke('notebook-ai', { body: { action: 'status' } })
+  const { data: status, error: statusError } = await invokeFunction(primary, 'notebook-ai', { body: { action: 'status' } })
   if (statusError || !status?.configured) {
     throw new Error(`Notebook AI status failed: ${statusError ? await functionErrorMessage(statusError) : 'Groq is not configured'}`)
   }
 
-  const { data: research, error: researchError } = await primary.functions.invoke('notebook-ai', {
+  const { data: research, error: researchError } = await invokeFunction(primary, 'notebook-ai', {
     body: {
       action: 'research',
       query: 'What are the current hosted Supabase Edge Functions runtime limits? Prefer official Supabase documentation.',
@@ -189,7 +207,7 @@ try {
     throw new Error(`Deep Research failed: ${researchError ? await functionErrorMessage(researchError) : 'report or tool-backed sources were incomplete'}`)
   }
 
-  const { data: sharedChat, error: sharedChatError } = await isolated.functions.invoke('notebook-ai', {
+  const { data: sharedChat, error: sharedChatError } = await invokeFunction(isolated, 'notebook-ai', {
     body: {
       action: 'chat', notebookId, sourceIds: [sourceId], shareToken, message: 'What is the deployment verification code?', history: [],
       config: { style: 'Default', length: 'Shorter', instructions: '' }, language: 'English',
@@ -211,7 +229,7 @@ try {
     throw new Error(`Revoked shared link still resolves: ${revokedNotebookError?.message || 'snapshot was returned'}`)
   }
 
-  const { data: chat, error: chatError } = await primary.functions.invoke('notebook-ai', {
+  const { data: chat, error: chatError } = await invokeFunction(primary, 'notebook-ai', {
     body: {
       action: 'chat', notebookId, sourceIds: [sourceId], message: 'What is the deployment verification code?', history: [],
       config: { style: 'Default', length: 'Shorter', instructions: '' }, language: 'English',
@@ -221,7 +239,7 @@ try {
     throw new Error(`Grounded Groq chat failed: ${chatError ? await functionErrorMessage(chatError) : 'answer or citation was not grounded'}`)
   }
 
-  const { data: studioArtifact, error: studioArtifactError } = await primary.functions.invoke('notebook-ai', {
+  const { data: studioArtifact, error: studioArtifactError } = await invokeFunction(primary, 'notebook-ai', {
     body: {
       action: 'artifact', notebookId, sourceIds: [sourceId], type: 'report',
       config: { focus: 'The verification code and approval date', language: 'English', format: 'Briefing document' },
@@ -235,7 +253,7 @@ try {
 
   const form = new FormData()
   form.set('file', new File(['Non-persistent deployment verification source.'], 'verification.txt', { type: 'text/plain' }))
-  const { data: imported, error: importError } = await primary.functions.invoke('source-import', { body: form })
+  const { data: imported, error: importError } = await invokeFunction(primary, 'source-import', { body: form })
   if (importError || imported?.imported?.content !== 'Non-persistent deployment verification source.') {
     throw new Error(`Source import function failed: ${importError ? await functionErrorMessage(importError) : 'unexpected extraction result'}`)
   }

@@ -205,6 +205,7 @@ select {
 .outline-button,
 .primary-button,
 .secondary-button,
+.danger-button,
 .dark-button,
 .text-button {
   display: inline-flex;
@@ -263,6 +264,38 @@ select {
 .secondary-button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.danger-button {
+  min-height: 42px;
+  padding: 0 19px;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  background: var(--danger);
+  border-radius: 999px;
+}
+
+.danger-button:hover {
+  background: color-mix(in srgb, var(--danger) 86%, #000);
+  transform: translateY(-1px);
+}
+
+.delete-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.delete-summary span {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-soft);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
 }
 
 .compact {
@@ -2081,9 +2114,9 @@ label > span,
   .notebook-emoji-button { min-width: 36px; padding: 0 5px; }
   .notebook-title-button,
   .notebook-title-input { max-width: calc(100vw - 206px); font-size: 14px; }
-  .workspace-actions .settings-trigger-button,
   .workspace-actions .ai-status-chip { display: none; }
   .workspace-actions .outline-button { min-width: 36px; padding: 0 7px; }
+  .workspace-actions .settings-trigger-button span,
   .workspace-actions .share-trigger-button span { display: none; }
   .shared-access-chip { min-height: 36px; padding: 5px 9px; }
   .shared-access-chip > span { display: none; }

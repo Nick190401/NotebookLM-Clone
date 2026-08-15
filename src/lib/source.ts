@@ -6,6 +6,14 @@ const COMMON_WORDS = new Set([
   'more', 'most', 'not', 'only', 'other', 'over', 'such', 'than', 'that', 'the', 'their',
   'there', 'these', 'they', 'this', 'through', 'use', 'using', 'was', 'were', 'which',
   'will', 'with', 'would', 'your',
+  'percent', 'percentage', 'million', 'billion', 'thousand', 'number', 'numbers',
+  'total', 'average', 'median', 'value', 'values', 'rate', 'rates', 'share',
+  'across', 'between', 'during', 'after', 'before', 'under', 'above', 'while',
+  'however', 'therefore', 'because', 'according', 'reported', 'reports', 'remains',
+  'reached', 'include', 'includes', 'including', 'compared', 'versus', 'years',
+  'year', 'month', 'months', 'quarter', 'annual', 'source', 'sources', 'content',
+  'image', 'images', 'figure', 'table', 'chart', 'text', 'document', 'page',
+  'section', 'overview', 'summary', 'study', 'data', 'based', 'each', 'per',
 ])
 
 export const SOURCE_LABEL_THRESHOLD = 5
@@ -28,6 +36,12 @@ export function organizeSources(sources: Source[]) {
   return sources.map((source) => source.label
     ? source
     : { ...source, label: suggestedSourceLabel(source) })
+}
+
+export function sourceKindLabel(source: Pick<Source, 'kind' | 'origin'>) {
+  if (source.kind !== 'text') return source.kind.toUpperCase()
+  const extension = source.origin.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]
+  return extension ? extension.toUpperCase() : 'TEXT'
 }
 
 export function inferTopics(content: string) {

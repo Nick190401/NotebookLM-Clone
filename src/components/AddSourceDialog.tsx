@@ -77,10 +77,25 @@ export function AddSourceDialog({ open, language, initialQuery = '', initialRese
     }
   }
 
+  const settleImports = async <T,>(items: T[], importOne: (item: T) => Promise<Parameters<typeof makeSource>[0]>, describe: (item: T) => string) => {
+    const settled = await Promise.allSettled(items.map(importOne))
+    const sources = settled.flatMap((result) => result.status === 'fulfilled' ? [makeSource(result.value)] : [])
+    const failures = settled.flatMap((result, index) => result.status === 'rejected'
+      ? [`${describe(items[index])}: ${result.reason instanceof Error ? result.reason.message : 'Import failed.'}`]
+      : [])
+    return { sources, failures }
+  }
+
   const importFiles = (files: File[]) => void run(async () => {
     if (!files.length) throw new Error('Choose at least one source file.')
-    const imported = await Promise.all(files.map(uploadSource))
-    finish(imported.map(makeSource))
+    const { sources, failures } = await settleImports(files, uploadSource, (file) => file.name)
+    if (!sources.length) throw new Error(failures.join(' · ') || 'The source could not be imported.')
+    if (failures.length) {
+      onAdd(sources)
+      setError(`${sources.length} of ${files.length} imported. Skipped — ${failures.join(' · ')}`)
+      return
+    }
+    finish(sources)
   })
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -109,8 +124,8 @@ export function AddSourceDialog({ open, language, initialQuery = '', initialRese
 
   const importDiscovery = () => void run(async () => {
     const selected = discoverResults.filter((item) => selectedResults.has(item.id))
-    const imported = await Promise.all(selected.map((item) => importSourceUrl(item.url)))
-    const sources = imported.map(makeSource)
+    const { sources, failures } = await settleImports(selected, (item) => importSourceUrl(item.url), (item) => item.title)
+    if (!deepResearch && !sources.length) throw new Error(failures.join(' · ') || 'No source could be imported.')
     if (deepResearch) {
       const appendix = deepResearch.results.map((source, index) => `[${index + 1}] ${source.title}\n${source.url}`).join('\n\n')
       sources.unshift(makeSource({
@@ -119,6 +134,11 @@ export function AddSourceDialog({ open, language, initialQuery = '', initialRese
         origin: `${deepResearch.model} · ${deepResearch.toolCount} research actions`,
         content: `${deepResearch.report}\n\nVerified web sources\n\n${appendix}`,
       }))
+    }
+    if (failures.length) {
+      onAdd(sources)
+      setError(`Imported ${sources.length}. Skipped — ${failures.join(' · ')}`)
+      return
     }
     finish(sources)
   })

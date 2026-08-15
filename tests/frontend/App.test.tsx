@@ -209,16 +209,26 @@ describe('NotebookLM clone with Supabase persistence', () => {
     expect(screen.queryByRole('heading', { name: 'My notebooks' })).not.toBeInTheDocument()
   })
 
-  it('shows a retryable error when the initial Supabase session cannot be opened', async () => {
-    const user = userEvent.setup()
+  it('recovers automatically when the first session attempt fails transiently', async () => {
     mocks.ensureSession.mockRejectedValueOnce(new Error('Session unavailable'))
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'My notebooks' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Supabase setup needed' })).not.toBeInTheDocument()
+    expect(mocks.ensureSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows a retryable error when the Supabase session cannot be opened at all', async () => {
+    const user = userEvent.setup()
+    mocks.ensureSession
+      .mockRejectedValueOnce(new Error('Session unavailable'))
+      .mockRejectedValueOnce(new Error('Session unavailable'))
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Supabase setup needed' })).toBeInTheDocument()
     expect(screen.getByText('Session unavailable')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('heading', { name: 'My notebooks' })).toBeInTheDocument()
-    expect(mocks.ensureSession).toHaveBeenCalledTimes(2)
   })
 
   it('opens a verified recovery callback and removes its URL credentials after the session resolves', async () => {

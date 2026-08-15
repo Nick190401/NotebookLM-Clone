@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { sourceKindLabel } from '../lib/source'
 import type { Source } from '../types'
 import { SourceIcon } from './ProductIcon'
 import { SourceLabelDialog } from './SourceLabelDialog'
@@ -100,7 +101,7 @@ export function SourcePanel({
     <div className={`source-row ${readOnly ? 'read-only' : ''}`} key={source.id}>
       <button className="source-open-button" type="button" aria-label={`Open source ${source.title}`} onClick={() => onOpen(source)}>
         <span className={`source-kind-icon source-${source.kind}`}><SourceIcon kind={source.kind} size={17} /></span>
-        <span className="source-row-copy"><strong>{source.title}</strong><small>{source.kind.toUpperCase()}{source.topics[0] ? ` · ${source.topics[0]}` : ''}</small></span>
+        <span className="source-row-copy"><strong>{source.title}</strong><small>{sourceKindLabel(source)}{source.topics[0] ? ` · ${source.topics[0]}` : ''}</small></span>
       </button>
       <button
         type="button"

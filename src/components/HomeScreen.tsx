@@ -4,6 +4,7 @@ import type { AccountIdentity } from '../lib/repository'
 import type { Notebook } from '../types'
 import { AccountButton } from './AccountButton'
 import { Brand } from './Brand'
+import { Modal } from './Modal'
 
 interface HomeScreenProps {
   notebooks: Notebook[]
@@ -27,6 +28,7 @@ function relativeTime(timestamp: number) {
 
 export function HomeScreen({ notebooks, onCreate, onOpen, onDelete, onDuplicate, onOpenSettings, account, onOpenAccount }: HomeScreenProps) {
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Notebook | null>(null)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<'recent' | 'title'>('recent')
   const [view, setView] = useState<'grid' | 'list'>('grid')
@@ -101,7 +103,7 @@ export function HomeScreen({ notebooks, onCreate, onOpen, onDelete, onDuplicate,
               {menuFor === notebook.id && (
                 <div className="context-menu">
                   <button type="button" onClick={() => { onDuplicate(notebook.id); setMenuFor(null) }}><Copy size={16} /> Create a copy</button>
-                  <button type="button" className="danger-menu-item" onClick={() => { onDelete(notebook.id); setMenuFor(null) }}><Trash2 size={16} /> Delete notebook</button>
+                  <button type="button" className="danger-menu-item" onClick={() => { setPendingDelete(notebook); setMenuFor(null) }}><Trash2 size={16} /> Delete notebook</button>
                 </div>
               )}
             </article>
@@ -115,6 +117,29 @@ export function HomeScreen({ notebooks, onCreate, onOpen, onDelete, onDuplicate,
         <span>NotebookLM Clone</span>
         <span>Sources stay grounded and private to your workspace</span>
       </footer>
+
+      <Modal
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        title={`Delete “${pendingDelete?.title ?? ''}”?`}
+        description="Deleting a notebook also removes its sources, chat history, Studio outputs, and notes. This cannot be undone."
+      >
+        <div className="delete-summary">
+          <span>{pendingDelete?.sources.length ?? 0} source{(pendingDelete?.sources.length ?? 0) === 1 ? '' : 's'}</span>
+          <span>{pendingDelete?.artifacts.length ?? 0} Studio output{(pendingDelete?.artifacts.length ?? 0) === 1 ? '' : 's'}</span>
+          <span>{pendingDelete?.notes.length ?? 0} note{(pendingDelete?.notes.length ?? 0) === 1 ? '' : 's'}</span>
+        </div>
+        <div className="modal-actions">
+          <button className="secondary-button" type="button" onClick={() => setPendingDelete(null)}>Cancel</button>
+          <button
+            className="danger-button"
+            type="button"
+            onClick={() => { if (pendingDelete) onDelete(pendingDelete.id); setPendingDelete(null) }}
+          >
+            Delete notebook
+          </button>
+        </div>
+      </Modal>
     </main>
   )
 }

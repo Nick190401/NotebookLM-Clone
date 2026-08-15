@@ -31,9 +31,14 @@ function extension(filename: string) {
 }
 
 async function extractPdf(bytes: Uint8Array) {
-  const document = await getDocumentProxy(bytes)
-  const result = await extractText(document, { mergePages: true })
-  return normalizeText(result.text)
+  try {
+    const document = await getDocumentProxy(bytes)
+    const result = await extractText(document, { mergePages: true })
+    return normalizeText(result.text)
+  } catch (error) {
+    console.error('PDF extraction failed', JSON.stringify({ detail: error instanceof Error ? error.message : String(error) }))
+    throw new HttpError('The PDF is damaged or password protected and could not be read.', 'INVALID_DOCUMENT', 422)
+  }
 }
 
 const HTML_ENTITIES: Record<string, string> = {
@@ -152,7 +157,16 @@ async function importYoutube(url: URL): Promise<ImportedSource> {
     }
     if (!content) throw new Error('Empty transcript')
     return { title, kind: 'youtube', origin: url.toString(), content: content.slice(0, 300_000) }
-  } catch {
+  } catch (error) {
+    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    console.error('YouTube transcript import failed', JSON.stringify({ url: url.toString(), detail }))
+    if (/consent|sign in|bot|not a bot|captcha|429|too many requests|unavailable/i.test(detail)) {
+      throw new HttpError(
+        'YouTube refused the transcript request from the server. This usually means YouTube is blocking the hosting provider rather than the video lacking captions.',
+        'TRANSCRIPT_BLOCKED',
+        502,
+      )
+    }
     throw new HttpError('No public transcript is available for this YouTube video.', 'TRANSCRIPT_UNAVAILABLE', 422)
   }
 }

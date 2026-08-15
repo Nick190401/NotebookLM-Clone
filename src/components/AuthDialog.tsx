@@ -120,6 +120,7 @@ export function AuthDialog({
         )}
         <form className="auth-form" onSubmit={submitPassword}>
           <div className="auth-section-heading"><KeyRound size={18} /><div><h3>Account password</h3><p>Set or replace the password used for email sign-in.</p></div></div>
+          <input className="visually-hidden" type="email" value={account.email ?? ''} autoComplete="username" tabIndex={-1} readOnly aria-hidden="true" />
           <label>New password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required /></label>
           <label>Confirm password<input type="password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} autoComplete="new-password" minLength={8} required /></label>
           <button className="primary-button" type="submit" disabled={busy}><LockKeyhole size={17} />{busy ? 'Updating…' : 'Update password'}</button>

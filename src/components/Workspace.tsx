@@ -240,11 +240,11 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
             </>
           ) : (
             <>
-              <button className="outline-button share-trigger-button" type="button" onClick={() => setShareDialogOpen(true)}><Share2 size={16} /><span>Share</span></button>
+              <button className="outline-button share-trigger-button" type="button" aria-label="Share notebook" onClick={() => setShareDialogOpen(true)}><Share2 size={16} /><span>Share</span></button>
               <button className={`ai-status-chip ${aiStatus?.configured ? 'ready' : 'setup'}`} type="button" onClick={onOpenSettings} title={aiStatus?.configured ? `Groq · ${aiStatus.primaryModel}` : 'Configure Groq'}>
                 <Sparkles size={14} />{aiStatus?.configured ? 'Groq AI' : 'Set up AI'}
               </button>
-              <button className="outline-button settings-trigger-button" type="button" onClick={onOpenSettings}><Settings size={16} /><span>Settings</span></button>
+              <button className="outline-button settings-trigger-button" type="button" aria-label="Open settings" onClick={onOpenSettings}><Settings size={16} /><span>Settings</span></button>
               <AccountButton account={account} onClick={onOpenAccount} />
             </>
           )}

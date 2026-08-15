@@ -1,6 +1,6 @@
 import { z } from 'npm:zod@4.4.3'
 import type { ArtifactConfig, ArtifactContent, ArtifactType, ChatConfig, Source } from './domain.ts'
-import { GROQ_MODELS, groqFetch, ProviderError, toGroqError, verifyGroqConfiguration } from './groq.ts'
+import { GROQ_MODELS, groqFetch, ProviderError, stripReasoning, toGroqError, verifyGroqConfiguration } from './groq.ts'
 import { HttpError } from './http.ts'
 import { formatContext, retrieveChunks, type SourceChunk } from './retrieval.ts'
 import { artifactContentSchema } from './schemas.ts'
@@ -75,34 +75,70 @@ async function structuredCall<T>(options: {
   maxTokens: number
 }) {
   const models = [GROQ_MODELS.primary, GROQ_MODELS.fallback, GROQ_MODELS.fast]
-  let lastError: unknown
+  const errors: unknown[] = []
+  let waitedForRateLimit = false
+
+  const attempt = async (model: string) => {
+    const strict = model === GROQ_MODELS.primary || model === GROQ_MODELS.fallback
+    const response = await groqFetch('/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: options.messages,
+        temperature: 0.2,
+        max_completion_tokens: options.maxTokens,
+        response_format: strict
+          ? { type: 'json_schema', json_schema: { name: options.schemaName, strict: true, schema: options.jsonSchema } }
+          : { type: 'json_object' },
+      }),
+    })
+    const body = await response.json() as { choices?: { message?: { content?: string } }[] }
+    const content = body.choices?.[0]?.message?.content
+    if (!content) throw new SyntaxError('Empty model response')
+    return { data: options.validator.parse(parseJson(content)), model }
+  }
+
   for (const model of models) {
     try {
-      const strict = model === GROQ_MODELS.primary || model === GROQ_MODELS.fallback
-      const response = await groqFetch('/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages: options.messages,
-          temperature: 0.2,
-          max_completion_tokens: options.maxTokens,
-          response_format: strict
-            ? { type: 'json_schema', json_schema: { name: options.schemaName, strict: true, schema: options.jsonSchema } }
-            : { type: 'json_object' },
-        }),
-      })
-      const body = await response.json() as { choices?: { message?: { content?: string } }[] }
-      const content = body.choices?.[0]?.message?.content
-      if (!content) throw new SyntaxError('Empty model response')
-      return { data: options.validator.parse(parseJson(content)), model }
+      return await attempt(model)
     } catch (error) {
-      lastError = error
+      console.error('Structured call failed', JSON.stringify({
+        schema: options.schemaName,
+        model,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      }))
+      errors.push(error)
       if (error instanceof ProviderError && [400, 401, 403].includes(error.status)) break
       if (error instanceof HttpError && error.code === 'AI_NOT_CONFIGURED') break
+      if (!waitedForRateLimit && error instanceof ProviderError && retryableDelayMs(error) > 0) {
+        waitedForRateLimit = true
+        await new Promise((resolve) => setTimeout(resolve, retryableDelayMs(error)))
+        try {
+          return await attempt(model)
+        } catch (retryError) {
+          errors.push(retryError)
+        }
+      }
     }
   }
-  throw toHttpError(lastError)
+  throw toHttpError(mostInformativeError(errors))
+}
+
+function retryableDelayMs(error: ProviderError) {
+  const limited = error.status === 429
+    || error.status === 498
+    || (error.status === 413 && /per minute|TPM|RPM|rate limit/i.test(error.message))
+  if (!limited) return 0
+  const seconds = Number.parseFloat(error.retryAfter ?? '')
+  return Math.min(Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : 3_000, 12_000)
+}
+
+function mostInformativeError(errors: unknown[]) {
+  return errors.find((error) => error instanceof HttpError)
+    ?? errors.find((error) => error instanceof ProviderError && error.status !== 400)
+    ?? errors.find((error) => error instanceof ProviderError)
+    ?? errors[errors.length - 1]
 }
 
 function chatStyle(value: ChatConfig) {
@@ -341,13 +377,13 @@ async function synthesizeResearchReport(
   scouts: ResearchScout[],
   sources: { title: string; url: string; summary: string }[],
 ) {
-  const sanitizeMemo = (memo: string) => memo.replace(/https?:\/\/\S+/g, '[unverified link removed]')
+  const sanitizeMemo = (memo: string) => stripReasoning(memo).replace(/https?:\/\/\S+/g, '[unverified link removed]')
   const sourceContext = sources.map((source, index) => (
     `[S${index + 1}] ${source.title}\nURL: ${source.url}\nEvidence: ${source.summary}`
   )).join('\n\n')
   const scoutContext = scouts.map((scout, index) => `RESEARCH ANGLE ${index + 1}\n${sanitizeMemo(scout.memo).slice(0, 1_600)}`).join('\n\n')
   let lastError: unknown
-  for (const model of [...new Set([GROQ_MODELS.vision, GROQ_MODELS.fast])]) {
+  for (const model of [...new Set([GROQ_MODELS.primary, GROQ_MODELS.fallback, GROQ_MODELS.fast])]) {
     try {
       const response = await groqFetch('/chat/completions', {
         method: 'POST',
@@ -356,7 +392,7 @@ async function synthesizeResearchReport(
         body: JSON.stringify({
           model,
           temperature: 0.1,
-          max_completion_tokens: 2_200,
+          max_completion_tokens: 4_000,
           messages: [
             {
               role: 'system',
@@ -367,7 +403,7 @@ async function synthesizeResearchReport(
         }),
       })
       const body = await response.json() as { model?: string; choices?: { message?: { content?: string } }[] }
-      const report = body.choices?.[0]?.message?.content?.trim()
+      const report = stripReasoning(body.choices?.[0]?.message?.content ?? '')
       if (!report) throw new SyntaxError('Empty research synthesis')
       return { report, model: body.model || model }
     } catch (error) {
