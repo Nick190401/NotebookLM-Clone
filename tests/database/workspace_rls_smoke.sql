@@ -159,14 +159,38 @@ begin
     or jsonb_array_length(shared_workspace #> '{notebook,notes}') <> 1 then
     raise exception 'Token-bound full sharing returned an invalid snapshot';
   end if;
+  if public.load_shared_notebook('33333333-3333-4333-8333-333333333333') is not null then
+    raise exception 'An invalid share token returned notebook data';
+  end if;
+
+  -- Grounding runs inside the Edge Function. If the browser role could read
+  -- shared source text directly, chat-only redaction would be cosmetic: a
+  -- chat-only link already exposes the notebook and source ids.
+  begin
+    perform public.load_shared_ai_sources(share_token, 'notebook-a', array['source-a']);
+    raise exception 'A share link holder can read unredacted source text directly';
+  exception when insufficient_privilege then
+    null;
+  end;
+  perform public.clear_workspace();
+end;
+$$;
+
+reset role;
+set local role service_role;
+
+do $$
+declare
+  share_token uuid := current_setting('test.share_token')::uuid;
+begin
   if jsonb_array_length(public.load_shared_ai_sources(share_token, 'notebook-a', array['source-a'])) <> 1 then
     raise exception 'Shared chat could not load token-bound source evidence';
   end if;
-  if public.load_shared_notebook('33333333-3333-4333-8333-333333333333') is not null
-    or jsonb_array_length(public.load_shared_ai_sources('33333333-3333-4333-8333-333333333333', 'notebook-a', array['source-a'])) <> 0 then
-    raise exception 'An invalid share token returned notebook data';
+  if jsonb_array_length(
+       public.load_shared_ai_sources('33333333-3333-4333-8333-333333333333', 'notebook-a', array['source-a'])
+     ) <> 0 then
+    raise exception 'An invalid share token returned shared source evidence';
   end if;
-  perform public.clear_workspace();
 end;
 $$;
 
@@ -194,12 +218,56 @@ begin
     or jsonb_array_length(shared_workspace #> '{notebook,notes}') <> 0 then
     raise exception 'Chat-only sharing exposed full notebook materials';
   end if;
+end;
+$$;
 
+reset role;
+set local role service_role;
+
+do $$
+begin
+  -- Redacting the browser payload must not break the Edge Function, which is
+  -- what actually grounds a chat-only conversation.
+  if jsonb_array_length(
+       public.load_shared_ai_sources(current_setting('test.share_token')::uuid, 'notebook-a', array['source-a'])
+     ) <> 1 then
+    raise exception 'Chat-only sharing broke server-side grounding';
+  end if;
+end;
+$$;
+
+reset role;
+set local "request.jwt.claim.sub" = '11111111-1111-4111-8111-111111111111';
+set local role authenticated;
+
+do $$
+begin
   perform public.set_notebook_sharing('notebook-a', 'private');
-  if public.load_shared_notebook(share_token) is not null
-    or jsonb_array_length(public.load_shared_ai_sources(share_token, 'notebook-a', array['source-a'])) <> 0 then
+  if public.load_shared_notebook(current_setting('test.share_token')::uuid) is not null then
     raise exception 'Revoked share token still returned notebook data';
   end if;
+end;
+$$;
+
+reset role;
+set local role service_role;
+
+do $$
+begin
+  if jsonb_array_length(
+       public.load_shared_ai_sources(current_setting('test.share_token')::uuid, 'notebook-a', array['source-a'])
+     ) <> 0 then
+    raise exception 'Revoked share token still returned shared source evidence';
+  end if;
+end;
+$$;
+
+reset role;
+set local "request.jwt.claim.sub" = '11111111-1111-4111-8111-111111111111';
+set local role authenticated;
+
+do $$
+begin
   perform public.clear_workspace();
   if jsonb_array_length(public.load_workspace() -> 'notebooks') <> 0 then
     raise exception 'Workspace clear failed';
@@ -237,13 +305,19 @@ begin
     or has_schema_privilege('anon', 'private', 'usage') then
     raise exception 'The anon Postgres role received workspace access';
   end if;
+  -- Unredacted shared source text is reachable only from the Edge Function.
+  if has_function_privilege('anon', 'public.load_shared_ai_sources(uuid,text,text[])', 'execute')
+    or has_function_privilege('authenticated', 'public.load_shared_ai_sources(uuid,text,text[])', 'execute')
+    or has_function_privilege('authenticated', 'private.load_shared_ai_sources(uuid,text,text[])', 'execute') then
+    raise exception 'Browser roles can read unredacted shared source text';
+  end if;
   if not has_function_privilege('authenticated', 'public.load_workspace()', 'execute')
     or not has_function_privilege('authenticated', 'public.load_ai_sources(text,text[])', 'execute')
     or not has_function_privilege('authenticated', 'public.set_notebook_sharing(text,text)', 'execute')
     or not has_function_privilege('authenticated', 'public.load_shared_notebook(uuid)', 'execute')
-    or not has_function_privilege('authenticated', 'public.load_shared_ai_sources(uuid,text,text[])', 'execute')
-    or not has_function_privilege('authenticated', 'public.consume_ai_quota(text)', 'execute') then
-    raise exception 'Authenticated RPC grants are missing';
+    or not has_function_privilege('authenticated', 'public.consume_ai_quota(text)', 'execute')
+    or not has_function_privilege('service_role', 'public.load_shared_ai_sources(uuid,text,text[])', 'execute') then
+    raise exception 'Required RPC grants are missing';
   end if;
 end;
 $$;

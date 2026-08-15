@@ -210,7 +210,7 @@ export function createRepository(client: SupabaseClient) {
     if (error) throw databaseError('The workspace could not be loaded from Supabase.', error)
     const parsed = appDataSchema.safeParse(data)
     if (!parsed.success) throw databaseError('Supabase returned an invalid workspace snapshot.', parsed.error)
-    const workspace = parsed.data as AppData
+    const workspace = parsed.data
     workspace.notebooks.forEach(rememberSources)
     return workspace
   }
@@ -221,7 +221,7 @@ export function createRepository(client: SupabaseClient) {
     if (data === null) throw new RepositoryError('This shared notebook link is unavailable or has been revoked.')
     const parsed = sharedNotebookSchema.safeParse(data)
     if (!parsed.success) throw databaseError('Supabase returned an invalid shared notebook snapshot.', parsed.error)
-    return parsed.data as SharedNotebook
+    return parsed.data
   }
 
   async function getNotebookSharing(id: string): Promise<NotebookShareDetails> {
@@ -229,7 +229,7 @@ export function createRepository(client: SupabaseClient) {
     if (error) throw databaseError('The notebook sharing settings could not be loaded.', error)
     const parsed = shareDetailsSchema.safeParse({ access: data?.sharing_access, token: data?.share_token })
     if (!parsed.success) throw databaseError('Supabase returned invalid notebook sharing settings.', parsed.error)
-    return parsed.data as NotebookShareDetails
+    return parsed.data
   }
 
   async function setNotebookSharing(id: string, access: NotebookShareAccess): Promise<NotebookShareDetails> {
@@ -240,7 +240,7 @@ export function createRepository(client: SupabaseClient) {
     if (error) throw databaseError('The notebook sharing settings could not be updated.', error)
     const parsed = shareDetailsSchema.safeParse(data)
     if (!parsed.success) throw databaseError('Supabase returned invalid notebook sharing settings.', parsed.error)
-    return parsed.data as NotebookShareDetails
+    return parsed.data
   }
 
   /**
@@ -332,8 +332,10 @@ export function createRepository(client: SupabaseClient) {
 export type NotebookRepository = ReturnType<typeof createRepository>
 
 /**
- * The Supabase client is only constructed on first use, so every call is
- * forwarded to a lazily created singleton instead of being bound at import time.
+ * Building the repository requires a configured Supabase client, so every call
+ * is forwarded to a singleton created on first use. Importing this module with
+ * missing configuration therefore stays harmless and the error surfaces where
+ * the app can render it instead of during module evaluation.
  */
 export const repository: NotebookRepository = new Proxy({} as NotebookRepository, {
   get(_target, method: string) {

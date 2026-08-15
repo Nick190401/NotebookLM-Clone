@@ -15,11 +15,18 @@ function jsonRequest(body: unknown, headers: Record<string, string> = {}) {
 }
 
 function withFunctionEnvironment<T>(run: () => Promise<T>) {
-  const names = ['SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY', 'GROQ_API_KEY', 'ALLOWED_ORIGINS'] as const
+  const names = [
+    'SUPABASE_URL',
+    'SUPABASE_PUBLISHABLE_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'GROQ_API_KEY',
+    'ALLOWED_ORIGINS',
+  ] as const
   const previous = new Map(names.map((name) => [name, Deno.env.get(name)]))
   const previousFetch = globalThis.fetch
   Deno.env.set('SUPABASE_URL', 'https://project.supabase.co')
   Deno.env.set('SUPABASE_PUBLISHABLE_KEY', 'publishable-test-key')
+  Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'service-role-test-key')
   Deno.env.set('GROQ_API_KEY', 'groq-test-key')
   Deno.env.delete('ALLOWED_ORIGINS')
   return run().finally(() => {
@@ -472,11 +479,13 @@ Deno.test('artifact generation forwards the selected format into the grounded pr
 Deno.test('shared chat loads sources only through the token-bound RPC', () =>
   withFunctionEnvironment(async () => {
     let rpcBody: Record<string, unknown> | undefined
+    let rpcKey: string | null = null
     globalThis.fetch = async (input, init) => {
       const request = new Request(input, init)
       if (request.url.endsWith('/auth/v1/user')) return Response.json({ id: 'viewer-a' })
       if (request.url.endsWith('/rest/v1/rpc/consume_ai_quota')) return quotaAllowed()
       if (request.url.endsWith('/rest/v1/rpc/load_shared_ai_sources')) {
+        rpcKey = request.headers.get('apikey')
         rpcBody = await request.json()
         return Response.json([
           {
@@ -515,6 +524,7 @@ Deno.test('shared chat loads sources only through the token-bound RPC', () =>
     assert(response.status === 200, `shared chat returned ${response.status}`)
     assert(rpcBody?.requested_share_token === '33333333-3333-4333-8333-333333333333', 'share token was not forwarded')
     assert(rpcBody?.requested_notebook_id === 'notebook-a', 'shared notebook id was not forwarded')
+    assert(rpcKey === 'service-role-test-key', 'unredacted shared source text was read with a browser-reachable key')
   }),
 )
 
