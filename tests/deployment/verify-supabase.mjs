@@ -192,14 +192,16 @@ try {
     )
   }
 
-  const { data: sharedAiSources, error: sharedAiSourcesError } = await isolated.rpc('load_shared_ai_sources', {
+  // Only the Edge Function may read unredacted shared source text. The grounded
+  // shared chat below proves that path still works.
+  const { error: sharedAiSourcesError } = await isolated.rpc('load_shared_ai_sources', {
     requested_share_token: shareToken,
     requested_notebook_id: notebookId,
     requested_source_ids: [sourceId],
   })
-  if (sharedAiSourcesError || sharedAiSources?.[0]?.content !== sourceContent) {
+  if (sharedAiSourcesError?.code !== '42501') {
     throw new Error(
-      `Token-bound shared AI source RPC failed: ${sharedAiSourcesError?.message || 'source content was unavailable'}`,
+      `A share link holder can read unredacted source text directly: ${sharedAiSourcesError?.message || 'the call succeeded'}`,
     )
   }
 

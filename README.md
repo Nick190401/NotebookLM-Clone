@@ -25,11 +25,13 @@ React/Vite browser
   └─ send-email Edge Function ── Send Email Auth hook, branded templates, Resend delivery
 ```
 
-The Groq and Resend keys exist only as Edge Function secrets. Every table has Row Level Security and every policy scopes rows to `(select auth.uid())`. The browser sends only notebook/source IDs for chat and artifact generation; the Edge Function reloads those sources through an authenticated RPC that forwards the caller JWT and therefore remains subject to RLS.
+The Groq and Resend keys exist only as Edge Function secrets, and the service-role key Supabase injects into every Function is used for exactly one call, described under sharing below. Every table has Row Level Security and every policy scopes rows to `(select auth.uid())`. The browser sends only notebook/source IDs for chat and artifact generation; the Edge Function reloads those sources through an authenticated RPC that forwards the caller JWT and therefore remains subject to RLS.
 
 Chat answers stream over server-sent events. The response is held back until the model has produced its first token, so a provider rate limit or auth failure still arrives as its real HTTP status rather than a 200 with an error inside it. Partial answers live in component state and only the finished message is written to Postgres, which keeps a streamed reply at one snapshot write instead of one per token.
 
-Public notebooks do not weaken those owner policies. A UUID share token is checked by narrow RPCs: full access returns a read-only notebook without the owner's chat history, while chat-only access redacts source text and Studio content from the browser. Grounded shared chat loads source text server-side through a separate token-bound RPC. Turning sharing off invalidates the link, and turning it on again creates a new token.
+Public notebooks do not weaken those owner policies. A UUID share token is checked by narrow RPCs: full access returns a read-only notebook without the owner's chat history, while chat-only access withholds source text and Studio content. Turning sharing off invalidates the link, and turning it on again creates a new token.
+
+Chat-only sharing is an authorization boundary rather than a display rule. A shared notebook still exposes its source ids, so the token-bound RPC that returns unredacted source text is executable by `service_role` alone and is called only by the Edge Function that performs the grounding. The browser roles hold no grant on it, and the database smoke tests assert both halves: `authenticated` is refused, and server-side grounding still works.
 
 The snapshot RPC performs each notebook update in one database transaction. `load_workspace()` returns one nested JSON document so a workspace does not silently stop at PostgREST's default row limit.
 
@@ -200,7 +202,7 @@ exercising the real router, the lazily loaded chunks, and the streaming transpor
 That layer earns its place: it caught a crash that only the production React build
 triggers, where an effect returning a non-function is fatal instead of a warning.
 
-`verify:supabase` creates two anonymous sessions, writes a temporary labeled notebook and settings, proves label/save/load round-trips, full-share and chat-only redaction, and cross-user RLS isolation, invokes Deep Research, grounded Groq chat, Studio artifact generation, and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.
+`verify:supabase` creates two anonymous sessions, writes a temporary labeled notebook and settings, proves label/save/load round-trips, full-share and chat-only redaction, that a share link holder cannot read unredacted source text directly, and cross-user RLS isolation, invokes Deep Research, grounded Groq chat, Studio artifact generation, and source import, then clears the temporary workspace in a `finally` block. It requires a valid deployed Groq key. The function-size gate keeps both dependency graphs below the 5 MB server-side bundling threshold, so deployment does not depend on local Docker.
 
 On Windows, `test:database` expects PostgreSQL 18 in `C:\Program Files\PostgreSQL\18\bin`. It starts a disposable native cluster, applies the migration and security smoke tests, then removes the cluster again.
 
@@ -217,6 +219,8 @@ The migration in `supabase/migrations` creates:
 - `ai_quota_policies` and `ai_quota_counters`
 - `save_notebook_snapshot(jsonb)`, `load_workspace()`, `load_ai_sources(text, text[])`, `consume_ai_quota(text)`, token-bound shared-read functions, and `clear_workspace()`
 
-All tables have explicit grants, authenticated-only RLS policies, composite ownership keys, cascade cleanup, constraints, and indexes for notebook-scoped reads. RPC execution is revoked from `public` and `anon` and granted only to `authenticated` and `service_role`. Shared-read helpers are `SECURITY DEFINER` functions in a non-exposed `private` schema with an empty `search_path`; public wrappers remain invoker-safe.
+All tables have explicit grants, authenticated-only RLS policies, composite ownership keys, cascade cleanup, constraints, and indexes for notebook-scoped reads. RPC execution is revoked from `public` and `anon`; `load_shared_ai_sources` is granted to `service_role` alone and the rest to `authenticated` and `service_role`. Shared-read helpers are `SECURITY DEFINER` functions in a non-exposed `private` schema with an empty `search_path`; public wrappers remain invoker-safe.
 
-Source URL imports allow only public HTTP(S) destinations, reject local/private DNS results and every redirect target, cap downloads, and strip non-content HTML. Source text is always treated as untrusted data inside AI prompts.
+Source URL imports allow only public HTTP(S) destinations. The hostname is resolved up front and every A/AAAA answer is checked against loopback, link-local, private, CGNAT and documentation ranges; each redirect hop is resolved and checked the same way instead of being followed blindly; downloads are capped while streaming; and non-content HTML is stripped. That check runs before the request, so it stops a caller from naming a private target but does not defend against DNS rebinding: Deno's `fetch` cannot be pinned to an already-validated address, and closing the window would mean hand-rolling HTTP over `Deno.connectTls`. Edge Functions run without a private network to reach, so the residual risk is accepted rather than hidden.
+
+Source text is always treated as untrusted data inside AI prompts.

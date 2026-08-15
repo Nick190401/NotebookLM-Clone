@@ -43,6 +43,10 @@
 
 * {
   box-sizing: border-box;
+  /* scrollbar-width does not inherit, so the scrollbar is styled on every
+     element rather than once on the root. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 html,

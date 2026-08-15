@@ -45,7 +45,6 @@ const STOP_WORDS = new Set([
   'eine',
   'einer',
   'eines',
-  'für',
   'from',
   'für',
   'hat',

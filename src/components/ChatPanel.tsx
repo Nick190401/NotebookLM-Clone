@@ -38,6 +38,25 @@ const suggestions = [
   'What are the practical risks?',
 ]
 
+/**
+ * The preview is anchored to its chip, so a citation near either edge of the
+ * column would otherwise be clipped by the neighbouring panels. Measuring once
+ * per hover slides it back inside the scrolling column and keeps the arrow on
+ * the chip.
+ */
+function clampPreview(event: { currentTarget: HTMLElement }) {
+  const preview = event.currentTarget.querySelector<HTMLElement>('.citation-preview')
+  const column = event.currentTarget.closest<HTMLElement>('.message-stream')
+  if (!preview || !column) return
+  preview.style.setProperty('--citation-shift', '0px')
+  const bounds = column.getBoundingClientRect()
+  const rect = preview.getBoundingClientRect()
+  const clippedLeft = bounds.left + 12 - rect.left
+  const clippedRight = rect.right - (bounds.right - 12)
+  const shift = clippedLeft > 0 ? clippedLeft : clippedRight > 0 ? -clippedRight : 0
+  preview.style.setProperty('--citation-shift', `${shift}px`)
+}
+
 function renderMessage(
   content: string,
   citations: Citation[],
@@ -61,6 +80,8 @@ function renderMessage(
               key={`citation-${index}`}
               aria-label={`Citation ${citation.label}`}
               aria-describedby={previewId}
+              onMouseEnter={clampPreview}
+              onFocus={clampPreview}
               onClick={() => onCitation(citation)}
             >
               <span aria-hidden="true">{citation.label}</span>

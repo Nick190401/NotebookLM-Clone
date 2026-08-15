@@ -16,6 +16,7 @@ import {
   HttpError,
   jsonResponse,
   supabaseRpc,
+  supabaseServiceRpc,
 } from '../_shared/http.ts'
 import { assertWithinBurstLimit, consumeQuota } from '../_shared/quota.ts'
 import { notebookAiRequestSchema } from '../_shared/schemas.ts'
@@ -23,7 +24,7 @@ import { notebookAiRequestSchema } from '../_shared/schemas.ts'
 async function notebookSources(context: AuthContext, notebookId: string, requestedIds: string[], shareToken?: string) {
   const sourceIds = [...new Set(requestedIds)]
   const data = shareToken
-    ? await supabaseRpc<SourceRow[]>(context, 'load_shared_ai_sources', {
+    ? await supabaseServiceRpc<SourceRow[]>(context, 'load_shared_ai_sources', {
         requested_share_token: shareToken,
         requested_notebook_id: notebookId,
         requested_source_ids: sourceIds,

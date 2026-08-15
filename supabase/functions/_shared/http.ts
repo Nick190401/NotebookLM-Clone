@@ -129,20 +129,24 @@ export async function authenticatedContext(request: Request): Promise<AuthContex
   return { authorization, publishableKey: key, supabaseUrl, userId: user.id }
 }
 
-export async function supabaseRpc<T>(
-  context: AuthContext,
+function serviceRoleKey() {
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY')
+  if (!key) throw new HttpError('Supabase service role key is not configured.', 'SUPABASE_NOT_CONFIGURED', 503)
+  return key
+}
+
+async function rpc<T>(
+  supabaseUrl: string,
+  authorization: string,
+  apikey: string,
   functionName: string,
   body: Record<string, unknown>,
 ): Promise<T> {
   let response: Response
   try {
-    response = await fetch(`${context.supabaseUrl}/rest/v1/rpc/${encodeURIComponent(functionName)}`, {
+    response = await fetch(`${supabaseUrl}/rest/v1/rpc/${encodeURIComponent(functionName)}`, {
       method: 'POST',
-      headers: {
-        Authorization: context.authorization,
-        apikey: context.publishableKey,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: authorization, apikey, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),
     })
@@ -154,4 +158,19 @@ export async function supabaseRpc<T>(
     throw new HttpError('The requested Supabase operation failed.', 'DATABASE_ERROR', 500)
   }
   return (await response.json()) as T
+}
+
+export function supabaseRpc<T>(context: AuthContext, functionName: string, body: Record<string, unknown>) {
+  return rpc<T>(context.supabaseUrl, context.authorization, context.publishableKey, functionName, body)
+}
+
+/**
+ * Reserved for the token-bound shared-chat lookup. That RPC returns unredacted
+ * source text, so it must stay unreachable from the browser: the caller is
+ * already authenticated at the HTTP boundary and the share token authorizes the
+ * read. Every other call keeps forwarding the caller JWT so RLS still applies.
+ */
+export function supabaseServiceRpc<T>(context: AuthContext, functionName: string, body: Record<string, unknown>) {
+  const key = serviceRoleKey()
+  return rpc<T>(context.supabaseUrl, `Bearer ${key}`, key, functionName, body)
 }

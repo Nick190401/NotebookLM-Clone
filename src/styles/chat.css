@@ -26,6 +26,7 @@
   font-size: 14.5px;
   line-height: 1.72;
   white-space: normal;
+  overflow-wrap: break-word;
 }
 .message-content br + span {
   display: inline-block;
@@ -99,7 +100,7 @@
   box-shadow: 0 14px 34px rgba(24, 29, 52, 0.18);
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 4px);
+  transform: translate(calc(-50% + var(--citation-shift, 0px)), 4px);
   transition:
     opacity 120ms ease,
     transform 120ms ease,
@@ -108,7 +109,7 @@
 .citation-preview::after {
   position: absolute;
   top: 100%;
-  left: 50%;
+  left: clamp(14px, calc(50% - var(--citation-shift, 0px)), calc(100% - 14px));
   width: 9px;
   height: 9px;
   content: '';
@@ -138,7 +139,7 @@
 .citation-chip:focus-visible .citation-preview {
   visibility: visible;
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translate(calc(-50% + var(--citation-shift, 0px)), 0);
 }
 .citation-chip.static {
   cursor: help;
