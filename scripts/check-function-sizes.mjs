@@ -8,8 +8,10 @@ const functions = [
 const limitInBytes = 5 * 1024 * 1024
 
 for (const [name, config, entrypoint] of functions) {
-  const output = execFileSync('deno', ['info', '--config', config, entrypoint], { encoding: 'utf8' })
-    .replace(/\x1b\[[0-9;]*m/g, '')
+  const output = execFileSync('deno', ['info', '--config', config, entrypoint], { encoding: 'utf8' }).replace(
+    /\x1b\[[0-9;]*m/g,
+    '',
+  )
   const match = output.match(/^size:\s+([\d.]+)(KB|MB)$/m)
   if (!match) throw new Error(`Could not read the ${name} dependency size from deno info.`)
   const bytes = Number(match[1]) * (match[2] === 'MB' ? 1024 * 1024 : 1024)

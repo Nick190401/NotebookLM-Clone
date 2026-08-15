@@ -46,9 +46,15 @@ function emailChangeContent(recipient: 'current' | 'new', newEmail: string, url:
   return {
     subject: `Connect your email to ${BRAND}`,
     heading: recipient === 'current' ? 'Approve this email change' : 'Confirm your new email',
-    lines: recipient === 'current'
-      ? [`Your ${BRAND} account is being moved to ${newEmail}. Approve the change from this address to continue.`, 'The change only completes once both addresses confirm it.']
-      : [`Confirm ${newEmail} to use it for ${BRAND}. Your notebooks, sources, and Studio artifacts stay on the same account.`],
+    lines:
+      recipient === 'current'
+        ? [
+            `Your ${BRAND} account is being moved to ${newEmail}. Approve the change from this address to continue.`,
+            'The change only completes once both addresses confirm it.',
+          ]
+        : [
+            `Confirm ${newEmail} to use it for ${BRAND}. Your notebooks, sources, and Studio artifacts stay on the same account.`,
+          ],
     action: { label: 'Confirm email change', url },
     footer: recipient === 'current' ? SECURITY_NOTE : IGNORE_NOTE,
   }
@@ -61,7 +67,9 @@ function contentFor(payload: SendEmailPayload, verify: (tokenHash: string) => st
       return {
         subject: `Confirm your ${BRAND} email`,
         heading: 'Confirm your email',
-        lines: [`Confirm this address to finish setting up your ${BRAND} account. Everything in your current workspace stays with you.`],
+        lines: [
+          `Confirm this address to finish setting up your ${BRAND} account. Everything in your current workspace stays with you.`,
+        ],
         action: { label: 'Confirm email', url: verify(data.token_hash) },
         footer: IGNORE_NOTE,
       }
@@ -85,7 +93,9 @@ function contentFor(payload: SendEmailPayload, verify: (tokenHash: string) => st
       return {
         subject: `Reset your ${BRAND} password`,
         heading: 'Reset your password',
-        lines: [`Choose a new password for ${user.email ?? 'your account'}. The link expires shortly and can be used once.`],
+        lines: [
+          `Choose a new password for ${user.email ?? 'your account'}. The link expires shortly and can be used once.`,
+        ],
         action: { label: 'Choose a new password', url: verify(data.token_hash) },
         footer: IGNORE_NOTE,
       }
@@ -109,7 +119,9 @@ function contentFor(payload: SendEmailPayload, verify: (tokenHash: string) => st
       return {
         subject: `Your ${BRAND} email was changed`,
         heading: 'Your email was changed',
-        lines: [`The address on your account changed${data.old_email ? ` from ${data.old_email}` : ''}${user.email ? ` to ${user.email}` : ''}.`],
+        lines: [
+          `The address on your account changed${data.old_email ? ` from ${data.old_email}` : ''}${user.email ? ` to ${user.email}` : ''}.`,
+        ],
         action: { label: `Open ${BRAND}`, url: data.site_url, plain: true },
         footer: SECURITY_NOTE,
       }
@@ -175,17 +187,29 @@ function row(padding: string, body: string) {
 
 function renderHtml(content: EmailContent) {
   const paragraphs = content.lines
-    .map((line) => row('12px 32px 0', `<p style="margin:0;font-size:15px;line-height:1.6;color:#6d7178;">${escapeHtml(line)}</p>`))
+    .map((line) =>
+      row('12px 32px 0', `<p style="margin:0;font-size:15px;line-height:1.6;color:#6d7178;">${escapeHtml(line)}</p>`),
+    )
     .join('')
   const action = content.action
-    ? row('24px 32px 0', `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#3f57dc;border-radius:999px;"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">${escapeHtml(content.action.label)}</a></td></tr></table>`)
+    ? row(
+        '24px 32px 0',
+        `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#3f57dc;border-radius:999px;"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">${escapeHtml(content.action.label)}</a></td></tr></table>`,
+      )
     : ''
   const code = content.code
-    ? row('20px 32px 0', `<div style="padding:14px 18px;background:#eaedff;border-radius:12px;font-size:22px;font-weight:700;letter-spacing:4px;color:#3f57dc;text-align:center;">${escapeHtml(content.code)}</div>`)
+    ? row(
+        '20px 32px 0',
+        `<div style="padding:14px 18px;background:#eaedff;border-radius:12px;font-size:22px;font-weight:700;letter-spacing:4px;color:#3f57dc;text-align:center;">${escapeHtml(content.code)}</div>`,
+      )
     : ''
-  const fallback = content.action && !content.action.plain
-    ? row('20px 32px 0', `<p style="margin:0;font-size:12px;line-height:1.6;color:#92969d;word-break:break-all;">Or paste this link into your browser:<br><span style="color:#5269e8;">${escapeHtml(content.action.url)}</span></p>`)
-    : ''
+  const fallback =
+    content.action && !content.action.plain
+      ? row(
+          '20px 32px 0',
+          `<p style="margin:0;font-size:12px;line-height:1.6;color:#92969d;word-break:break-all;">Or paste this link into your browser:<br><span style="color:#5269e8;">${escapeHtml(content.action.url)}</span></p>`,
+        )
+      : ''
 
   return `<!doctype html>
 <html lang="en">

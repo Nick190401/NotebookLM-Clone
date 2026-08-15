@@ -22,7 +22,11 @@ const formats: Partial<Record<ArtifactType, string[]>> = {
 }
 
 export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: ArtifactConfigDialogProps) {
-  const [draft, setDraft] = useState(() => type ? defaultArtifactConfig(type, settings.outputLanguage) : defaultArtifactConfig('report', settings.outputLanguage))
+  const [draft, setDraft] = useState(() =>
+    type
+      ? defaultArtifactConfig(type, settings.outputLanguage)
+      : defaultArtifactConfig('report', settings.outputLanguage),
+  )
   const definition = artifactDefinitions.find((item) => item.type === type)
 
   if (!type || !definition) return null
@@ -38,8 +42,13 @@ export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: Ar
       className="artifact-config-modal"
     >
       <div className={`artifact-config-identity tint-${definition.tint}`}>
-        <span><ArtifactIcon type={type} size={23} /></span>
-        <div><strong>{definition.label}</strong><small>Uses {type === 'audio' ? 'all selected sources' : 'your selected sources'}</small></div>
+        <span>
+          <ArtifactIcon type={type} size={23} />
+        </span>
+        <div>
+          <strong>{definition.label}</strong>
+          <small>Uses {type === 'audio' ? 'all selected sources' : 'your selected sources'}</small>
+        </div>
       </div>
 
       {!isStudyAid && type !== 'mindmap' && (
@@ -53,7 +62,8 @@ export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: Ar
                 className={draft.format === format ? 'selected' : ''}
                 onClick={() => setDraft({ ...draft, format })}
               >
-                <span className="radio-dot" />{format}
+                <span className="radio-dot" />
+                {format}
               </button>
             ))}
           </div>
@@ -66,7 +76,14 @@ export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: Ar
             <h3>Difficulty</h3>
             <div className="segmented-control">
               {(['Easy', 'Medium', 'Hard'] as const).map((difficulty) => (
-                <button type="button" key={difficulty} className={draft.difficulty === difficulty ? 'active' : ''} onClick={() => setDraft({ ...draft, difficulty })}>{difficulty}</button>
+                <button
+                  type="button"
+                  key={difficulty}
+                  className={draft.difficulty === difficulty ? 'active' : ''}
+                  onClick={() => setDraft({ ...draft, difficulty })}
+                >
+                  {difficulty}
+                </button>
               ))}
             </div>
           </div>
@@ -74,7 +91,14 @@ export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: Ar
             <h3>Amount</h3>
             <div className="segmented-control">
               {(['Fewer', 'Standard', 'More'] as const).map((amount) => (
-                <button type="button" key={amount} className={draft.amount === amount ? 'active' : ''} onClick={() => setDraft({ ...draft, amount })}>{amount}</button>
+                <button
+                  type="button"
+                  key={amount}
+                  className={draft.amount === amount ? 'active' : ''}
+                  onClick={() => setDraft({ ...draft, amount })}
+                >
+                  {amount}
+                </button>
               ))}
             </div>
           </div>
@@ -93,7 +117,10 @@ export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: Ar
       </label>
 
       <label className="config-label">
-        {type === 'audio' || type === 'video' ? 'What should the AI hosts focus on?' : `What should this ${definition.shortLabel.toLowerCase()} focus on?`} <span>optional</span>
+        {type === 'audio' || type === 'video'
+          ? 'What should the AI hosts focus on?'
+          : `What should this ${definition.shortLabel.toLowerCase()} focus on?`}{' '}
+        <span>optional</span>
         <textarea
           rows={4}
           value={draft.focus}
@@ -103,8 +130,17 @@ export function ArtifactConfigDialog({ type, settings, onClose, onGenerate }: Ar
       </label>
 
       <div className="modal-actions">
-        <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-        <button className="primary-button" type="button" onClick={() => { onGenerate(type, draft); onClose() }}>
+        <button className="secondary-button" type="button" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => {
+            onGenerate(type, draft)
+            onClose()
+          }}
+        >
           <Sparkles size={17} /> Generate
         </button>
       </div>

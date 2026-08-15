@@ -10,11 +10,13 @@ const mocks = vi.hoisted(() => ({
   setNotebookSharing: vi.fn(),
 }))
 
-vi.mock('../../src/lib/repository', () => ({ repository: {
-  flushNotebook: mocks.flushNotebook,
-  getNotebookSharing: mocks.getNotebookSharing,
-  setNotebookSharing: mocks.setNotebookSharing,
-} }))
+vi.mock('../../src/lib/repository', () => ({
+  repository: {
+    flushNotebook: mocks.flushNotebook,
+    getNotebookSharing: mocks.getNotebookSharing,
+    setNotebookSharing: mocks.setNotebookSharing,
+  },
+}))
 
 describe('ShareDialog', () => {
   beforeEach(() => {

@@ -1,6 +1,13 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { z } from 'zod'
-import type { AppData, AppSettings, Notebook, NotebookShareAccess, NotebookShareDetails, SharedNotebook } from '../types'
+import type {
+  AppData,
+  AppSettings,
+  Notebook,
+  NotebookShareAccess,
+  NotebookShareDetails,
+  SharedNotebook,
+} from '../types'
 import { requireSupabase } from './supabase'
 
 const settingsSchema = z.object({
@@ -10,16 +17,34 @@ const settingsSchema = z.object({
 
 const citationSchema = z.object({ sourceId: z.string(), label: z.number(), excerpt: z.string() })
 const sourceSchema = z.object({
-  id: z.string(), title: z.string(), kind: z.enum(['pdf', 'web', 'youtube', 'text', 'audio', 'image']),
-  origin: z.string(), content: z.string(), summary: z.string(), topics: z.array(z.string()), label: z.string().max(80).default(''), selected: z.boolean(), createdAt: z.number(),
+  id: z.string(),
+  title: z.string(),
+  kind: z.enum(['pdf', 'web', 'youtube', 'text', 'audio', 'image']),
+  origin: z.string(),
+  content: z.string(),
+  summary: z.string(),
+  topics: z.array(z.string()),
+  label: z.string().max(80).default(''),
+  selected: z.boolean(),
+  createdAt: z.number(),
 })
 const artifactContentSchema = z.object({
   summary: z.string(),
   sections: z.array(z.object({ heading: z.string(), body: z.string(), sourceIds: z.array(z.string()) })),
   cards: z.array(z.object({ front: z.string(), back: z.string(), sourceId: z.string() })),
-  questions: z.array(z.object({ question: z.string(), options: z.array(z.string()), correctIndex: z.number(), explanation: z.string(), sourceId: z.string() })),
+  questions: z.array(
+    z.object({
+      question: z.string(),
+      options: z.array(z.string()),
+      correctIndex: z.number(),
+      explanation: z.string(),
+      sourceId: z.string(),
+    }),
+  ),
   nodes: z.array(z.object({ id: z.string(), label: z.string(), parentId: z.string(), sourceId: z.string() })),
-  slides: z.array(z.object({ title: z.string(), body: z.string(), metric: z.string(), sourceIds: z.array(z.string()) })),
+  slides: z.array(
+    z.object({ title: z.string(), body: z.string(), metric: z.string(), sourceIds: z.array(z.string()) }),
+  ),
   columns: z.array(z.string()),
   rows: z.array(z.object({ cells: z.array(z.string()), sourceIds: z.array(z.string()) })),
   metrics: z.array(z.object({ value: z.string(), label: z.string(), context: z.string(), sourceId: z.string() })),
@@ -27,18 +52,55 @@ const artifactContentSchema = z.object({
   narration: z.string(),
 })
 const notebookSchema = z.object({
-  id: z.string(), title: z.string(), emoji: z.string(),
+  id: z.string(),
+  title: z.string(),
+  emoji: z.string(),
   sources: z.array(sourceSchema),
-  messages: z.array(z.object({ id: z.string(), role: z.enum(['user', 'assistant']), content: z.string(), citations: z.array(citationSchema), createdAt: z.number(), saved: z.boolean().optional() })),
-  artifacts: z.array(z.object({
-    id: z.string(), type: z.enum(['audio', 'video', 'mindmap', 'report', 'flashcards', 'quiz', 'infographic', 'slides', 'datatable']),
-    title: z.string(), status: z.enum(['generating', 'ready', 'error']), createdAt: z.number(),
-    config: z.object({ focus: z.string(), language: z.string(), format: z.string().optional(), difficulty: z.enum(['Easy', 'Medium', 'Hard']).optional(), amount: z.enum(['Fewer', 'Standard', 'More']).optional() }),
-    content: artifactContentSchema.optional(), error: z.string().optional(), model: z.string().optional(),
-  })),
-  notes: z.array(z.object({ id: z.string(), title: z.string(), body: z.string(), createdAt: z.number(), locked: z.boolean().optional() })),
-  chatConfig: z.object({ style: z.enum(['Default', 'Learning Guide', 'Custom']), length: z.enum(['Shorter', 'Default', 'Longer']), instructions: z.string() }),
-  createdAt: z.number(), updatedAt: z.number(),
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      role: z.enum(['user', 'assistant']),
+      content: z.string(),
+      citations: z.array(citationSchema),
+      createdAt: z.number(),
+      saved: z.boolean().optional(),
+    }),
+  ),
+  artifacts: z.array(
+    z.object({
+      id: z.string(),
+      type: z.enum(['audio', 'video', 'mindmap', 'report', 'flashcards', 'quiz', 'infographic', 'slides', 'datatable']),
+      title: z.string(),
+      status: z.enum(['generating', 'ready', 'error']),
+      createdAt: z.number(),
+      config: z.object({
+        focus: z.string(),
+        language: z.string(),
+        format: z.string().optional(),
+        difficulty: z.enum(['Easy', 'Medium', 'Hard']).optional(),
+        amount: z.enum(['Fewer', 'Standard', 'More']).optional(),
+      }),
+      content: artifactContentSchema.optional(),
+      error: z.string().optional(),
+      model: z.string().optional(),
+    }),
+  ),
+  notes: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      body: z.string(),
+      createdAt: z.number(),
+      locked: z.boolean().optional(),
+    }),
+  ),
+  chatConfig: z.object({
+    style: z.enum(['Default', 'Learning Guide', 'Custom']),
+    length: z.enum(['Shorter', 'Default', 'Longer']),
+    instructions: z.string(),
+  }),
+  createdAt: z.number(),
+  updatedAt: z.number(),
 })
 const appDataSchema = z.object({ notebooks: z.array(notebookSchema), settings: settingsSchema })
 const shareDetailsSchema = z.object({
@@ -51,7 +113,10 @@ const sharedNotebookSchema = z.object({
 })
 
 export class RepositoryError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message)
   }
 }
@@ -70,10 +135,17 @@ function databaseError(message: string, cause: unknown) {
   return new RepositoryError(message, cause)
 }
 
+interface NotebookWriter {
+  latest: Notebook
+  running: Promise<void>
+}
+
 export function createRepository(client: SupabaseClient) {
-  const pending = new Map<string, Promise<void>>()
+  const writers = new Map<string, NotebookWriter>()
   const persistedSourceContent = new Map<string, Map<string, string>>()
   let settingsPending: Promise<void> = Promise.resolve()
+
+  const runningWrites = () => [...writers.values()].map((writer) => writer.running)
 
   function rememberSources(notebook: Notebook) {
     persistedSourceContent.set(notebook.id, new Map(notebook.sources.map((source) => [source.id, source.content])))
@@ -83,9 +155,11 @@ export function createRepository(client: SupabaseClient) {
     const previous = persistedSourceContent.get(notebook.id)
     return {
       ...notebook,
-      sources: notebook.sources.map((source) => previous?.get(source.id) === source.content
-        ? Object.fromEntries(Object.entries(source).filter(([key]) => key !== 'content'))
-        : source),
+      sources: notebook.sources.map((source) =>
+        previous?.get(source.id) === source.content
+          ? Object.fromEntries(Object.entries(source).filter(([key]) => key !== 'content'))
+          : source,
+      ),
     }
   }
 
@@ -94,7 +168,8 @@ export function createRepository(client: SupabaseClient) {
     if (sessionError) throw databaseError('The Supabase session could not be restored.', sessionError)
     if (current.session?.user) return accountIdentity(current.session.user)
     const { data, error } = await client.auth.signInAnonymously()
-    if (error || !data.user) throw databaseError('Anonymous Supabase sign-in failed. Confirm that anonymous sign-ins are enabled.', error)
+    if (error || !data.user)
+      throw databaseError('Anonymous Supabase sign-in failed. Confirm that anonymous sign-ins are enabled.', error)
     return accountIdentity(data.user)
   }
 
@@ -105,7 +180,7 @@ export function createRepository(client: SupabaseClient) {
   }
 
   async function signIn(email: string, password: string) {
-    await Promise.all([...pending.values(), settingsPending])
+    await Promise.all([...runningWrites(), settingsPending])
     const { data, error } = await client.auth.signInWithPassword({ email, password })
     if (error || !data.user) throw databaseError('Sign-in failed. Check your email and password.', error)
     persistedSourceContent.clear()
@@ -124,7 +199,7 @@ export function createRepository(client: SupabaseClient) {
   }
 
   async function signOut() {
-    await Promise.all([...pending.values(), settingsPending])
+    await Promise.all([...runningWrites(), settingsPending])
     const { error } = await client.auth.signOut({ scope: 'local' })
     if (error) throw databaseError('The account could not be signed out.', error)
     persistedSourceContent.clear()
@@ -168,37 +243,56 @@ export function createRepository(client: SupabaseClient) {
     return parsed.data as NotebookShareDetails
   }
 
+  /**
+   * One write per notebook is in flight at a time and edits made while it runs
+   * are coalesced into a single follow-up snapshot. Rapid interactions such as
+   * toggling sources therefore cost two writes instead of one per change, and the
+   * newest state still wins.
+   */
   function saveNotebook(notebook: Notebook) {
-    const previous = pending.get(notebook.id)?.catch(() => undefined) ?? Promise.resolve()
-    const next = previous.then(async () => {
-      const { error } = await client.rpc('save_notebook_snapshot', { snapshot: compactSnapshot(notebook) })
-      if (error) throw databaseError(`Notebook "${notebook.title}" could not be saved.`, error)
-      rememberSources(notebook)
-    })
-    pending.set(notebook.id, next)
-    next.then(
-      () => { if (pending.get(notebook.id) === next) pending.delete(notebook.id) },
-      () => { if (pending.get(notebook.id) === next) pending.delete(notebook.id) },
-    )
-    return next
+    const existing = writers.get(notebook.id)
+    if (existing) {
+      existing.latest = notebook
+      return existing.running
+    }
+
+    const writer: NotebookWriter = { latest: notebook, running: Promise.resolve() }
+    writers.set(notebook.id, writer)
+    writer.running = (async () => {
+      try {
+        let written: Notebook | null = null
+        while (writer.latest !== written) {
+          const snapshot: Notebook = writer.latest
+          const { error } = await client.rpc('save_notebook_snapshot', { snapshot: compactSnapshot(snapshot) })
+          if (error) throw databaseError(`Notebook "${snapshot.title}" could not be saved.`, error)
+          rememberSources(snapshot)
+          written = snapshot
+        }
+      } finally {
+        writers.delete(notebook.id)
+      }
+    })()
+    return writer.running
   }
 
   async function flushNotebook(id: string) {
-    await pending.get(id)
+    await writers.get(id)?.running
   }
 
   function saveSettings(settings: AppSettings) {
-    settingsPending = settingsPending.catch(() => undefined).then(async () => {
-      const { data, error: authError } = await client.auth.getUser()
-      if (authError || !data.user) throw databaseError('The active Supabase user could not be resolved.', authError)
-      const { error } = await client.from('user_settings').upsert({
-        user_id: data.user.id,
-        theme: settings.theme,
-        output_language: settings.outputLanguage,
-        updated_at: new Date().toISOString(),
+    settingsPending = settingsPending
+      .catch(() => undefined)
+      .then(async () => {
+        const { data, error: authError } = await client.auth.getUser()
+        if (authError || !data.user) throw databaseError('The active Supabase user could not be resolved.', authError)
+        const { error } = await client.from('user_settings').upsert({
+          user_id: data.user.id,
+          theme: settings.theme,
+          output_language: settings.outputLanguage,
+          updated_at: new Date().toISOString(),
+        })
+        if (error) throw databaseError('Settings could not be saved.', error)
       })
-      if (error) throw databaseError('Settings could not be saved.', error)
-    })
     return settingsPending
   }
 
@@ -210,38 +304,45 @@ export function createRepository(client: SupabaseClient) {
   }
 
   async function clearWorkspace() {
-    await Promise.allSettled([...pending.values(), settingsPending])
+    await Promise.allSettled([...runningWrites(), settingsPending])
     const { error } = await client.rpc('clear_workspace')
     if (error) throw databaseError('The workspace could not be cleared.', error)
     persistedSourceContent.clear()
   }
 
   return {
-    ensureSession, beginAccountUpgrade, signIn, setPassword, sendPasswordReset, signOut,
-    loadWorkspace, loadSharedNotebook, getNotebookSharing, setNotebookSharing,
-    saveNotebook, flushNotebook, saveSettings, deleteNotebook, clearWorkspace,
+    ensureSession,
+    beginAccountUpgrade,
+    signIn,
+    setPassword,
+    sendPasswordReset,
+    signOut,
+    loadWorkspace,
+    loadSharedNotebook,
+    getNotebookSharing,
+    setNotebookSharing,
+    saveNotebook,
+    flushNotebook,
+    saveSettings,
+    deleteNotebook,
+    clearWorkspace,
   }
 }
 
 export type NotebookRepository = ReturnType<typeof createRepository>
 
-export const repository = {
-  ensureSession: (...args: Parameters<NotebookRepository['ensureSession']>) => createRepositorySingleton().ensureSession(...args),
-  beginAccountUpgrade: (...args: Parameters<NotebookRepository['beginAccountUpgrade']>) => createRepositorySingleton().beginAccountUpgrade(...args),
-  signIn: (...args: Parameters<NotebookRepository['signIn']>) => createRepositorySingleton().signIn(...args),
-  setPassword: (...args: Parameters<NotebookRepository['setPassword']>) => createRepositorySingleton().setPassword(...args),
-  sendPasswordReset: (...args: Parameters<NotebookRepository['sendPasswordReset']>) => createRepositorySingleton().sendPasswordReset(...args),
-  signOut: (...args: Parameters<NotebookRepository['signOut']>) => createRepositorySingleton().signOut(...args),
-  loadWorkspace: (...args: Parameters<NotebookRepository['loadWorkspace']>) => createRepositorySingleton().loadWorkspace(...args),
-  loadSharedNotebook: (...args: Parameters<NotebookRepository['loadSharedNotebook']>) => createRepositorySingleton().loadSharedNotebook(...args),
-  getNotebookSharing: (...args: Parameters<NotebookRepository['getNotebookSharing']>) => createRepositorySingleton().getNotebookSharing(...args),
-  setNotebookSharing: (...args: Parameters<NotebookRepository['setNotebookSharing']>) => createRepositorySingleton().setNotebookSharing(...args),
-  saveNotebook: (...args: Parameters<NotebookRepository['saveNotebook']>) => createRepositorySingleton().saveNotebook(...args),
-  flushNotebook: (...args: Parameters<NotebookRepository['flushNotebook']>) => createRepositorySingleton().flushNotebook(...args),
-  saveSettings: (...args: Parameters<NotebookRepository['saveSettings']>) => createRepositorySingleton().saveSettings(...args),
-  deleteNotebook: (...args: Parameters<NotebookRepository['deleteNotebook']>) => createRepositorySingleton().deleteNotebook(...args),
-  clearWorkspace: (...args: Parameters<NotebookRepository['clearWorkspace']>) => createRepositorySingleton().clearWorkspace(...args),
-}
+/**
+ * The Supabase client is only constructed on first use, so every call is
+ * forwarded to a lazily created singleton instead of being bound at import time.
+ */
+export const repository: NotebookRepository = new Proxy({} as NotebookRepository, {
+  get(_target, method: string) {
+    return (...args: unknown[]) => {
+      const instance = createRepositorySingleton() as Record<string, (...values: unknown[]) => unknown>
+      return instance[method](...args)
+    }
+  },
+})
 
 let singleton: NotebookRepository | null = null
 function createRepositorySingleton() {

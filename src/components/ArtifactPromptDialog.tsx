@@ -38,25 +38,52 @@ export function ArtifactPromptDialog({ artifact, onClose }: ArtifactPromptDialog
       className="artifact-prompt-dialog"
     >
       <div className="artifact-prompt-identity">
-        <span className={`tint-${definition?.tint ?? 'violet'}`}><ArtifactIcon type={artifact.type} size={20} /></span>
-        <div><strong>{definition?.label ?? artifact.type}</strong><small>{artifact.config.format || definition?.defaultFormat} · {artifact.config.language}{artifact.model ? ` · ${artifact.model}` : ''}</small></div>
+        <span className={`tint-${definition?.tint ?? 'violet'}`}>
+          <ArtifactIcon type={artifact.type} size={20} />
+        </span>
+        <div>
+          <strong>{definition?.label ?? artifact.type}</strong>
+          <small>
+            {artifact.config.format || definition?.defaultFormat} · {artifact.config.language}
+            {artifact.model ? ` · ${artifact.model}` : ''}
+          </small>
+        </div>
       </div>
 
       <div className="artifact-prompt-block">
-        <div><MessageSquareQuote size={17} /><strong>Prompt used</strong></div>
+        <div>
+          <MessageSquareQuote size={17} />
+          <strong>Prompt used</strong>
+        </div>
         <pre>{prompt}</pre>
-        <button className="secondary-button compact" type="button" onClick={() => { void copyPrompt() }}>
-          {copied ? <Check size={15} /> : <Copy size={15} />}{copied ? 'Copied' : 'Copy prompt'}
+        <button
+          className="secondary-button compact"
+          type="button"
+          onClick={() => {
+            void copyPrompt()
+          }}
+        >
+          {copied ? <Check size={15} /> : <Copy size={15} />}
+          {copied ? 'Copied' : 'Copy prompt'}
         </button>
       </div>
-      {copyError && <div className="form-error" role="alert">{copyError}</div>}
+      {copyError && (
+        <div className="form-error" role="alert">
+          {copyError}
+        </div>
+      )}
 
       <div className="artifact-prompt-note">
         <ShieldCheck size={17} />
-        <span><strong>Source-grounded generation</strong><small>Selected source evidence is sent separately and treated as data, never as instructions.</small></span>
+        <span>
+          <strong>Source-grounded generation</strong>
+          <small>Selected source evidence is sent separately and treated as data, never as instructions.</small>
+        </span>
       </div>
       <div className="modal-actions artifact-prompt-actions">
-        <button className="primary-button" type="button" onClick={onClose}>Done</button>
+        <button className="primary-button" type="button" onClick={onClose}>
+          Done
+        </button>
       </div>
     </Modal>
   )

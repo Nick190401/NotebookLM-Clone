@@ -29,15 +29,7 @@ export interface ChatMessage {
 }
 
 export type ArtifactType =
-  | 'audio'
-  | 'video'
-  | 'mindmap'
-  | 'report'
-  | 'flashcards'
-  | 'quiz'
-  | 'infographic'
-  | 'slides'
-  | 'datatable'
+  'audio' | 'video' | 'mindmap' | 'report' | 'flashcards' | 'quiz' | 'infographic' | 'slides' | 'datatable'
 
 export interface ArtifactConfig {
   focus: string

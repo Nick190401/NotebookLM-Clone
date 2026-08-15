@@ -12,7 +12,9 @@ describe('citation location', () => {
     const content = 'First paragraph.\n\nTimetable coordination\nreduced missed connections.'
     const location = locateCitation(content, 'Timetable coordination reduced missed connections.')
 
-    expect(location && content.slice(location.start, location.end)).toBe('Timetable coordination\nreduced missed connections.')
+    expect(location && content.slice(location.start, location.end)).toBe(
+      'Timetable coordination\nreduced missed connections.',
+    )
   })
 
   it('does not highlight an unsupported excerpt', () => {

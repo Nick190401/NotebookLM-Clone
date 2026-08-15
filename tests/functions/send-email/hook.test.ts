@@ -15,7 +15,8 @@ function withEnvironment<T>(run: () => Promise<T>) {
   Deno.env.set('SUPABASE_URL', 'https://project.supabase.co')
   return run().finally(() => {
     globalThis.fetch = previous
-    for (const name of ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API_KEY', 'RESEND_FROM_ADDRESS', 'SUPABASE_URL']) Deno.env.delete(name)
+    for (const name of ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API_KEY', 'RESEND_FROM_ADDRESS', 'SUPABASE_URL'])
+      Deno.env.delete(name)
   })
 }
 
@@ -47,40 +48,46 @@ const body = JSON.stringify({
   },
 })
 
-Deno.test('a signed hook call sends the rendered email through Resend', () => withEnvironment(async () => {
-  let sent: Request | undefined
-  globalThis.fetch = async (input, init) => {
-    sent = new Request(input, init)
-    return Response.json({ id: 'resend-message-id' })
-  }
+Deno.test('a signed hook call sends the rendered email through Resend', () =>
+  withEnvironment(async () => {
+    let sent: Request | undefined
+    globalThis.fetch = async (input, init) => {
+      sent = new Request(input, init)
+      return Response.json({ id: 'resend-message-id' })
+    }
 
-  const response = await handleSendEmailRequest(hookRequest(body))
-  assert(response.status === 200, `hook returned ${response.status}`)
-  assert(sent?.url === 'https://api.resend.com/emails', 'Resend was not called')
-  assert(sent?.headers.get('Authorization') === 'Bearer resend-test-key', 'the Resend key was not forwarded')
-  const message = await sent!.json() as { from: string; to: string[]; subject: string; html: string; text: string }
-  assert(message.from === 'NotebookLM Clone <auth@notebooklm.example>', 'the configured sender was not used')
-  assert(message.to[0] === 'reader@example.com', 'the message went to the wrong recipient')
-  assert(message.subject === 'Confirm your NotebookLM Clone email', `unexpected subject ${message.subject}`)
-  assert(message.html.includes('/auth/v1/verify?token=hash-current'), 'the confirmation link is missing')
-}))
+    const response = await handleSendEmailRequest(hookRequest(body))
+    assert(response.status === 200, `hook returned ${response.status}`)
+    assert(sent?.url === 'https://api.resend.com/emails', 'Resend was not called')
+    assert(sent?.headers.get('Authorization') === 'Bearer resend-test-key', 'the Resend key was not forwarded')
+    const message = (await sent!.json()) as { from: string; to: string[]; subject: string; html: string; text: string }
+    assert(message.from === 'NotebookLM Clone <auth@notebooklm.example>', 'the configured sender was not used')
+    assert(message.to[0] === 'reader@example.com', 'the message went to the wrong recipient')
+    assert(message.subject === 'Confirm your NotebookLM Clone email', `unexpected subject ${message.subject}`)
+    assert(message.html.includes('/auth/v1/verify?token=hash-current'), 'the confirmation link is missing')
+  }),
+)
 
-Deno.test('an unsigned hook call is rejected without sending anything', () => withEnvironment(async () => {
-  let called = false
-  globalThis.fetch = async () => {
-    called = true
-    return Response.json({})
-  }
+Deno.test('an unsigned hook call is rejected without sending anything', () =>
+  withEnvironment(async () => {
+    let called = false
+    globalThis.fetch = async () => {
+      called = true
+      return Response.json({})
+    }
 
-  const response = await handleSendEmailRequest(hookRequest(body, false))
-  assert(response.status === 401, `unsigned call returned ${response.status}`)
-  assert(!called, 'an unverified payload reached Resend')
-}))
+    const response = await handleSendEmailRequest(hookRequest(body, false))
+    assert(response.status === 401, `unsigned call returned ${response.status}`)
+    assert(!called, 'an unverified payload reached Resend')
+  }),
+)
 
-Deno.test('a Resend outage is reported as a retryable hook failure', () => withEnvironment(async () => {
-  globalThis.fetch = async () => new Response('service unavailable', { status: 503 })
+Deno.test('a Resend outage is reported as a retryable hook failure', () =>
+  withEnvironment(async () => {
+    globalThis.fetch = async () => new Response('service unavailable', { status: 503 })
 
-  const response = await handleSendEmailRequest(hookRequest(body))
-  assert(response.status === 503, `outage returned ${response.status}`)
-  assert(response.headers.get('Retry-After') === 'true', 'the hook did not ask Supabase Auth to retry')
-}))
+    const response = await handleSendEmailRequest(hookRequest(body))
+    assert(response.status === 503, `outage returned ${response.status}`)
+    assert(response.headers.get('Retry-After') === 'true', 'the hook did not ask Supabase Auth to retry')
+  }),
+)

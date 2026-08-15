@@ -31,7 +31,9 @@ export function artifactGenerationPrompt(artifact: Artifact) {
     `Focus: ${artifact.config.focus.trim() || 'The most important insights'}.`,
     artifact.config.difficulty ? `Difficulty: ${artifact.config.difficulty}.` : '',
     artifact.config.amount ? `Target item count: ${count}.` : '',
-  ].filter(Boolean).join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 export function artifactExportLabel(artifact: Artifact) {
@@ -43,7 +45,17 @@ export function artifactExport(artifact: Artifact, sources: Source[]): ArtifactE
   const content = artifact.content
   if (!content) {
     return {
-      content: JSON.stringify({ title: artifact.title, type: artifact.type, config: artifact.config, model: artifact.model, content: artifact.content }, null, 2),
+      content: JSON.stringify(
+        {
+          title: artifact.title,
+          type: artifact.type,
+          config: artifact.config,
+          model: artifact.model,
+          content: artifact.content,
+        },
+        null,
+        2,
+      ),
       extension: 'json',
       label: artifactExportLabel(artifact),
       mimeType: 'application/json',
@@ -68,33 +80,75 @@ export function artifactExport(artifact: Artifact, sources: Source[]): ArtifactE
   const lines = [`# ${artifact.title}`, '', content.summary]
   switch (artifact.type) {
     case 'audio':
-      lines.push('', '## Transcript', ...content.transcript.flatMap((line) => ['', `**${line.speaker}:** ${line.text}${markdownSources(line.sourceIds, sources)}`]))
+      lines.push(
+        '',
+        '## Transcript',
+        ...content.transcript.flatMap((line) => [
+          '',
+          `**${line.speaker}:** ${line.text}${markdownSources(line.sourceIds, sources)}`,
+        ]),
+      )
       break
     case 'video':
     case 'slides':
-      content.slides.forEach((slide, index) => lines.push('', `## ${index + 1}. ${slide.title}`, '', slide.body, ...(slide.metric ? ['', `**${slide.metric}**`] : []), markdownSources(slide.sourceIds, sources)))
+      content.slides.forEach((slide, index) =>
+        lines.push(
+          '',
+          `## ${index + 1}. ${slide.title}`,
+          '',
+          slide.body,
+          ...(slide.metric ? ['', `**${slide.metric}**`] : []),
+          markdownSources(slide.sourceIds, sources),
+        ),
+      )
       break
     case 'mindmap':
-      content.nodes.forEach((node) => lines.push('', `${node.parentId ? '-' : '##'} ${node.label}${markdownSources([node.sourceId], sources)}`))
+      content.nodes.forEach((node) =>
+        lines.push('', `${node.parentId ? '-' : '##'} ${node.label}${markdownSources([node.sourceId], sources)}`),
+      )
       break
     case 'report':
-      content.sections.forEach((section) => lines.push('', `## ${section.heading}`, '', `${section.body}${markdownSources(section.sourceIds, sources)}`))
+      content.sections.forEach((section) =>
+        lines.push('', `## ${section.heading}`, '', `${section.body}${markdownSources(section.sourceIds, sources)}`),
+      )
       break
     case 'flashcards':
-      content.cards.forEach((card, index) => lines.push('', `## Card ${index + 1}`, '', `**Question:** ${card.front}`, '', `**Answer:** ${card.back}${markdownSources([card.sourceId], sources)}`))
+      content.cards.forEach((card, index) =>
+        lines.push(
+          '',
+          `## Card ${index + 1}`,
+          '',
+          `**Question:** ${card.front}`,
+          '',
+          `**Answer:** ${card.back}${markdownSources([card.sourceId], sources)}`,
+        ),
+      )
       break
     case 'quiz':
-      content.questions.forEach((question, index) => lines.push(
-        '', `## ${index + 1}. ${question.question}`, '',
-        ...question.options.map((option, optionIndex) => `${String.fromCharCode(65 + optionIndex)}. ${option}`),
-        '', `**Answer:** ${String.fromCharCode(65 + question.correctIndex)}. ${question.options[question.correctIndex] || ''}`,
-        '', `${question.explanation}${markdownSources([question.sourceId], sources)}`,
-      ))
+      content.questions.forEach((question, index) =>
+        lines.push(
+          '',
+          `## ${index + 1}. ${question.question}`,
+          '',
+          ...question.options.map((option, optionIndex) => `${String.fromCharCode(65 + optionIndex)}. ${option}`),
+          '',
+          `**Answer:** ${String.fromCharCode(65 + question.correctIndex)}. ${question.options[question.correctIndex] || ''}`,
+          '',
+          `${question.explanation}${markdownSources([question.sourceId], sources)}`,
+        ),
+      )
       break
     case 'infographic':
       lines.push('', '## Key metrics')
-      content.metrics.forEach((metric) => lines.push('', `- **${metric.value} — ${metric.label}:** ${metric.context}${markdownSources([metric.sourceId], sources)}`))
-      content.sections.forEach((section) => lines.push('', `## ${section.heading}`, '', `${section.body}${markdownSources(section.sourceIds, sources)}`))
+      content.metrics.forEach((metric) =>
+        lines.push(
+          '',
+          `- **${metric.value} — ${metric.label}:** ${metric.context}${markdownSources([metric.sourceId], sources)}`,
+        ),
+      )
+      content.sections.forEach((section) =>
+        lines.push('', `## ${section.heading}`, '', `${section.body}${markdownSources(section.sourceIds, sources)}`),
+      )
       break
   }
 
@@ -111,7 +165,12 @@ export function downloadArtifact(artifact: Artifact, sources: Source[]) {
   const url = URL.createObjectURL(new Blob([exported.content], { type: exported.mimeType }))
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = `${artifact.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'notebook-output'}.${exported.extension}`
+  anchor.download = `${
+    artifact.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'notebook-output'
+  }.${exported.extension}`
   anchor.click()
   URL.revokeObjectURL(url)
 }

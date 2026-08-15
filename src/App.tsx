@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Cloud, LoaderCircle, RefreshCw } from 'lucide-react'
 import { getAiStatus } from './lib/api'
 import { copyNotebook, createBlankNotebook, createEmptyAppData } from './lib/notebook'
 import { repository, type AccountIdentity } from './lib/repository'
 import type { AiStatus, AppData, AppSettings, Notebook } from './types'
-import { AuthDialog } from './components/AuthDialog'
 import { HomeScreen } from './components/HomeScreen'
-import { SettingsDialog } from './components/SettingsDialog'
+import { AuthDialog, SettingsDialog } from './components/lazy'
 import { Workspace } from './components/Workspace'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -59,7 +58,10 @@ export default function App() {
     setData(next)
   }
 
-  const activeNotebook = useMemo(() => data.notebooks.find((notebook) => notebook.id === activeNotebookId) ?? null, [activeNotebookId, data.notebooks])
+  const activeNotebook = useMemo(
+    () => data.notebooks.find((notebook) => notebook.id === activeNotebookId) ?? null,
+    [activeNotebookId, data.notebooks],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -89,7 +91,9 @@ export default function App() {
         setSharedToken(null)
         setSharedAccess(null)
         setLoading(false)
-        void getAiStatus().then(setAiStatus).catch(() => setAiStatus(null))
+        void getAiStatus()
+          .then(setAiStatus)
+          .catch(() => setAiStatus(null))
       } catch (caught) {
         if (cancelled) return
         if (!retried) {
@@ -103,7 +107,9 @@ export default function App() {
       }
     }
     void load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [loadAttempt])
 
   useEffect(() => {
@@ -117,7 +123,10 @@ export default function App() {
     const syncFromHash = () => {
       const nextSharedRoute = sharedRouteFromHash()
       const currentlyShared = sharedToken !== null || sharedAccess !== null
-      if (nextSharedRoute.present !== currentlyShared || (nextSharedRoute.token && nextSharedRoute.token !== sharedToken)) {
+      if (
+        nextSharedRoute.present !== currentlyShared ||
+        (nextSharedRoute.token && nextSharedRoute.token !== sharedToken)
+      ) {
         setLoading(true)
         setLoadError('')
         setLoadAttempt((value) => value + 1)
@@ -132,7 +141,9 @@ export default function App() {
   useEffect(() => {
     const root = document.documentElement
     const applyTheme = () => {
-      const dark = data.settings.theme === 'dark' || (data.settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      const dark =
+        data.settings.theme === 'dark' ||
+        (data.settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       root.dataset.theme = dark ? 'dark' : 'light'
     }
     applyTheme()
@@ -150,10 +161,19 @@ export default function App() {
     setActiveNotebookId(id)
   }
 
+  const leaveNotebook = () => {
+    window.location.hash = ''
+    setActiveNotebookId(null)
+    setNewNotebookId(null)
+  }
+
   const createNotebook = () => {
     const notebook = createBlankNotebook()
     replaceData({ ...dataRef.current, notebooks: [notebook, ...dataRef.current.notebooks] })
-    void repository.saveNotebook(notebook).then(() => setSyncError('')).catch(recordPersistenceError)
+    void repository
+      .saveNotebook(notebook)
+      .then(() => setSyncError(''))
+      .catch(recordPersistenceError)
     setNewNotebookId(notebook.id)
     openNotebook(notebook.id)
   }
@@ -163,7 +183,10 @@ export default function App() {
     if (!source) return
     const notebook = copyNotebook(source)
     replaceData({ ...dataRef.current, notebooks: [notebook, ...dataRef.current.notebooks] })
-    void repository.saveNotebook(notebook).then(() => setSyncError('')).catch(recordPersistenceError)
+    void repository
+      .saveNotebook(notebook)
+      .then(() => setSyncError(''))
+      .catch(recordPersistenceError)
     openNotebook(notebook.id)
   }
 
@@ -183,21 +206,33 @@ export default function App() {
     const current = dataRef.current.notebooks.find((notebook) => notebook.id === id)
     if (!current) return null
     const next = recipe(current)
-    replaceData({ ...dataRef.current, notebooks: dataRef.current.notebooks.map((notebook) => notebook.id === id ? next : notebook) })
-    void repository.saveNotebook(next).then(() => setSyncError('')).catch(recordPersistenceError)
+    replaceData({
+      ...dataRef.current,
+      notebooks: dataRef.current.notebooks.map((notebook) => (notebook.id === id ? next : notebook)),
+    })
+    void repository
+      .saveNotebook(next)
+      .then(() => setSyncError(''))
+      .catch(recordPersistenceError)
     return next
   }
 
   const updateSettings = (settings: AppSettings) => {
     replaceData({ ...dataRef.current, settings })
-    void repository.saveSettings(settings).then(() => setSyncError('')).catch(recordPersistenceError)
+    void repository
+      .saveSettings(settings)
+      .then(() => setSyncError(''))
+      .catch(recordPersistenceError)
   }
 
   const updateSharedNotebook = (id: string, recipe: (notebook: Notebook) => Notebook) => {
     const current = dataRef.current.notebooks.find((notebook) => notebook.id === id)
     if (!current) return null
     const next = recipe(current)
-    replaceData({ ...dataRef.current, notebooks: dataRef.current.notebooks.map((notebook) => notebook.id === id ? next : notebook) })
+    replaceData({
+      ...dataRef.current,
+      notebooks: dataRef.current.notebooks.map((notebook) => (notebook.id === id ? next : notebook)),
+    })
     return next
   }
 
@@ -280,17 +315,46 @@ export default function App() {
 
   if (loading) {
     const openingSharedNotebook = sharedRouteFromHash().present
-    return <main className="app-state-screen"><LoaderCircle className="spin" size={30} /><h1>{openingSharedNotebook ? 'Opening shared notebook' : 'Opening your notebooks'}</h1><p>Connecting securely to Supabase…</p></main>
+    return (
+      <main className="app-state-screen">
+        <LoaderCircle className="spin" size={30} />
+        <h1>{openingSharedNotebook ? 'Opening shared notebook' : 'Opening your notebooks'}</h1>
+        <p>Connecting securely to Supabase…</p>
+      </main>
+    )
   }
 
   if (loadError || !account) {
     const sharedRouteFailed = sharedRouteFromHash().present
-    return <main className="app-state-screen error"><AlertTriangle size={30} /><h1>{sharedRouteFailed ? 'Shared notebook unavailable' : 'Supabase setup needed'}</h1><p>{loadError || 'The active Supabase account could not be resolved.'}</p><button className="primary-button" type="button" onClick={sharedRouteFailed ? leaveSharedNotebook : () => { setLoading(true); setLoadError(''); setLoadAttempt((value) => value + 1) }}>{sharedRouteFailed ? null : <RefreshCw size={17} />}{sharedRouteFailed ? 'Go to my notebooks' : 'Try again'}</button></main>
+    const retry = () => {
+      setLoading(true)
+      setLoadError('')
+      setLoadAttempt((value) => value + 1)
+    }
+    return (
+      <main className="app-state-screen error">
+        <AlertTriangle size={30} />
+        <h1>{sharedRouteFailed ? 'Shared notebook unavailable' : 'Supabase setup needed'}</h1>
+        <p>{loadError || 'The active Supabase account could not be resolved.'}</p>
+        <button className="primary-button" type="button" onClick={sharedRouteFailed ? leaveSharedNotebook : retry}>
+          {!sharedRouteFailed && <RefreshCw size={17} />}
+          {sharedRouteFailed ? 'Go to my notebooks' : 'Try again'}
+        </button>
+      </main>
+    )
   }
 
   return (
     <>
-      {syncError && <div className="sync-error-banner" role="alert"><Cloud size={16} /><span>{syncError}</span><button type="button" onClick={() => setSyncError('')}>Dismiss</button></div>}
+      {syncError && (
+        <div className="sync-error-banner" role="alert">
+          <Cloud size={16} />
+          <span>{syncError}</span>
+          <button type="button" onClick={() => setSyncError('')}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {activeNotebook ? (
         <Workspace
           key={`${activeNotebook.id}-${sharedToken ?? 'owner'}`}
@@ -300,9 +364,11 @@ export default function App() {
           aiStatus={aiStatus}
           shareAccess={sharedAccess ?? undefined}
           shareToken={sharedToken ?? undefined}
-          onBack={sharedToken ? leaveSharedNotebook : () => { window.location.hash = ''; setActiveNotebookId(null); setNewNotebookId(null) }}
-          onUpdate={(recipe) => sharedToken ? updateSharedNotebook(activeNotebook.id, recipe) : updateNotebook(activeNotebook.id, recipe)}
-          onFlush={() => sharedToken ? Promise.resolve() : repository.flushNotebook(activeNotebook.id)}
+          onBack={sharedToken ? leaveSharedNotebook : leaveNotebook}
+          onUpdate={(recipe) =>
+            sharedToken ? updateSharedNotebook(activeNotebook.id, recipe) : updateNotebook(activeNotebook.id, recipe)
+          }
+          onFlush={() => (sharedToken ? Promise.resolve() : repository.flushNotebook(activeNotebook.id))}
           onOpenSettings={() => setSettingsOpen(true)}
           account={account}
           onOpenAccount={() => setAccountOpen(true)}
@@ -313,27 +379,54 @@ export default function App() {
           notebooks={data.notebooks}
           onCreate={createNotebook}
           onOpen={openNotebook}
-          onDelete={(id) => { void deleteNotebook(id) }}
+          onDelete={(id) => {
+            void deleteNotebook(id)
+          }}
           onDuplicate={duplicateNotebook}
           onOpenSettings={() => setSettingsOpen(true)}
           account={account}
           onOpenAccount={() => setAccountOpen(true)}
         />
       )}
-      {!sharedToken && <SettingsDialog open={settingsOpen} data={data} settings={data.settings} aiStatus={aiStatus} onClose={() => setSettingsOpen(false)} onChange={updateSettings} onReset={() => { void clearWorkspace() }} />}
-      {!sharedToken && <AuthDialog
-        key={account.id}
-        open={accountOpen}
-        account={account}
-        notebookCount={data.notebooks.length}
-        prompt={accountPrompt}
-        onClose={() => { setAccountOpen(false); setAccountPrompt(null) }}
-        onBeginUpgrade={async (email) => { await repository.beginAccountUpgrade(email, accountRedirect('confirmed')) }}
-        onSignIn={signIn}
-        onSetPassword={async (password) => { setAccount(await repository.setPassword(password)) }}
-        onSendPasswordReset={async (email) => { await repository.sendPasswordReset(email, accountRedirect('recovery')) }}
-        onSignOut={signOut}
-      />}
+      <Suspense fallback={null}>
+        {!sharedToken && settingsOpen && (
+          <SettingsDialog
+            open
+            data={data}
+            settings={data.settings}
+            aiStatus={aiStatus}
+            onClose={() => setSettingsOpen(false)}
+            onChange={updateSettings}
+            onReset={() => {
+              void clearWorkspace()
+            }}
+          />
+        )}
+        {!sharedToken && accountOpen && (
+          <AuthDialog
+            key={account.id}
+            open
+            account={account}
+            notebookCount={data.notebooks.length}
+            prompt={accountPrompt}
+            onClose={() => {
+              setAccountOpen(false)
+              setAccountPrompt(null)
+            }}
+            onBeginUpgrade={async (email) => {
+              await repository.beginAccountUpgrade(email, accountRedirect('confirmed'))
+            }}
+            onSignIn={signIn}
+            onSetPassword={async (password) => {
+              setAccount(await repository.setPassword(password))
+            }}
+            onSendPasswordReset={async (email) => {
+              await repository.sendPasswordReset(email, accountRedirect('recovery'))
+            }}
+            onSignOut={signOut}
+          />
+        )}
+      </Suspense>
     </>
   )
 }

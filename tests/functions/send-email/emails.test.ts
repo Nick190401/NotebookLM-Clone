@@ -6,7 +6,10 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
 
-function payload(overrides: Partial<SendEmailPayload['email_data']>, user: SendEmailPayload['user'] = { email: 'reader@example.com' }): SendEmailPayload {
+function payload(
+  overrides: Partial<SendEmailPayload['email_data']>,
+  user: SendEmailPayload['user'] = { email: 'reader@example.com' },
+): SendEmailPayload {
   return {
     user,
     email_data: {
@@ -43,7 +46,10 @@ Deno.test('every email action type renders one branded, script-free NotebookLM m
     assert(message.subject.length > 0, `${email_action_type} has no subject`)
     assert(message.html.startsWith('<!doctype html>'), `${email_action_type} is not a full HTML document`)
     assert(message.html.includes('NotebookLM Clone'), `${email_action_type} is not branded`)
-    assert(message.html.includes('role="presentation"'), `${email_action_type} does not use presentational table layout`)
+    assert(
+      message.html.includes('role="presentation"'),
+      `${email_action_type} does not use presentational table layout`,
+    )
     assert(!/<script|javascript:/i.test(message.html), `${email_action_type} contains executable email content`)
     assert(message.text.includes('NotebookLM Clone'), `${email_action_type} has no plain-text alternative`)
   }
@@ -51,7 +57,8 @@ Deno.test('every email action type renders one branded, script-free NotebookLM m
 
 Deno.test('verification emails link to the Supabase verify endpoint with the token hash and redirect', () => {
   const [message] = buildMessages(payload({ email_action_type: 'recovery' }), SUPABASE_URL)
-  const expected = 'https://project.supabase.co/auth/v1/verify?token=hash-current&type=recovery&redirect_to=https%3A%2F%2Fnotebooklm.example%2F%3Faccount%3Dconfirmed'
+  const expected =
+    'https://project.supabase.co/auth/v1/verify?token=hash-current&type=recovery&redirect_to=https%3A%2F%2Fnotebooklm.example%2F%3Faccount%3Dconfirmed'
   assert(message.html.includes(`href="${expected.replace(/&/g, '&amp;')}"`), 'recovery link is missing or malformed')
   assert(message.text.includes(expected), 'plain-text recovery link is missing')
 })
@@ -60,7 +67,10 @@ Deno.test('only reauthentication shows a one-time code, because nothing else can
   for (const email_action_type of actionTypes) {
     const [message] = buildMessages(payload({ email_action_type }), SUPABASE_URL)
     const showsCode = message.html.includes('12345678')
-    assert(showsCode === (email_action_type === 'reauthentication'), `${email_action_type} ${showsCode ? 'shows' : 'hides'} a code it should not`)
+    assert(
+      showsCode === (email_action_type === 'reauthentication'),
+      `${email_action_type} ${showsCode ? 'shows' : 'hides'} a code it should not`,
+    )
   }
 })
 
@@ -71,10 +81,13 @@ Deno.test('notification emails point at the site instead of a verification link'
 })
 
 Deno.test('secure email change sends both addresses the token pair that belongs to them', () => {
-  const messages = buildMessages(payload(
-    { email_action_type: 'email_change', token_new: '87654321', token_hash_new: 'hash-new' },
-    { email: 'reader@example.com', new_email: 'moved@example.com' },
-  ), SUPABASE_URL)
+  const messages = buildMessages(
+    payload(
+      { email_action_type: 'email_change', token_new: '87654321', token_hash_new: 'hash-new' },
+      { email: 'reader@example.com', new_email: 'moved@example.com' },
+    ),
+    SUPABASE_URL,
+  )
   assert(messages.length === 2, 'secure email change did not produce two messages')
   const [current, next] = messages
   assert(current.to === 'reader@example.com' && next.to === 'moved@example.com', 'email change recipients are wrong')
@@ -83,19 +96,25 @@ Deno.test('secure email change sends both addresses the token pair that belongs 
 })
 
 Deno.test('an anonymous account linking its first email receives a single confirmation', () => {
-  const messages = buildMessages(payload(
-    { email_action_type: 'email_change', token_new: '87654321', token_hash_new: 'hash-new' },
-    { email: '', new_email: 'guest@example.com' },
-  ), SUPABASE_URL)
+  const messages = buildMessages(
+    payload(
+      { email_action_type: 'email_change', token_new: '87654321', token_hash_new: 'hash-new' },
+      { email: '', new_email: 'guest@example.com' },
+    ),
+    SUPABASE_URL,
+  )
   assert(messages.length === 1, 'a guest upgrade should only email the new address')
   assert(messages[0].to === 'guest@example.com', 'the guest upgrade was addressed to the wrong recipient')
 })
 
 Deno.test('addresses from the hook payload are escaped before they reach the HTML body', () => {
-  const [message] = buildMessages(payload(
-    { email_action_type: 'email_changed_notification', old_email: '"><img src=x onerror=alert(1)>@example.com' },
-    { email: 'reader@example.com' },
-  ), SUPABASE_URL)
+  const [message] = buildMessages(
+    payload(
+      { email_action_type: 'email_changed_notification', old_email: '"><img src=x onerror=alert(1)>@example.com' },
+      { email: 'reader@example.com' },
+    ),
+    SUPABASE_URL,
+  )
   assert(!message.html.includes('<img src=x'), 'a payload address was injected into the markup')
   assert(message.html.includes('&lt;img src=x'), 'the payload address was not escaped')
 })

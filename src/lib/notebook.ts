@@ -47,27 +47,46 @@ export function copyNotebook(source: Notebook): Notebook {
       createdAt: timestamp,
     })),
     messages: [],
-    artifacts: source.artifacts.filter((artifact) => artifact.status === 'ready').map((artifact) => ({
-      ...artifact,
-      id: createId('artifact'),
-      createdAt: timestamp,
-      content: artifact.content ? {
-        ...artifact.content,
-        sections: artifact.content.sections.map((section) => ({ ...section, sourceIds: section.sourceIds.map(mappedSourceId) })),
-        cards: artifact.content.cards.map((card) => ({ ...card, sourceId: mappedSourceId(card.sourceId) })),
-        questions: artifact.content.questions.map((question) => ({ ...question, sourceId: mappedSourceId(question.sourceId) })),
-        nodes: artifact.content.nodes.map((node) => ({
-          ...node,
-          id: nodeIds.get(node.id) ?? node.id,
-          parentId: nodeIds.get(node.parentId) ?? node.parentId,
-          sourceId: mappedSourceId(node.sourceId),
-        })),
-        slides: artifact.content.slides.map((slide) => ({ ...slide, sourceIds: slide.sourceIds.map(mappedSourceId) })),
-        rows: artifact.content.rows.map((row) => ({ ...row, sourceIds: row.sourceIds.map(mappedSourceId) })),
-        metrics: artifact.content.metrics.map((metric) => ({ ...metric, sourceId: mappedSourceId(metric.sourceId) })),
-        transcript: artifact.content.transcript.map((line) => ({ ...line, sourceIds: line.sourceIds.map(mappedSourceId) })),
-      } : undefined,
-    })),
+    artifacts: source.artifacts
+      .filter((artifact) => artifact.status === 'ready')
+      .map((artifact) => ({
+        ...artifact,
+        id: createId('artifact'),
+        createdAt: timestamp,
+        content: artifact.content
+          ? {
+              ...artifact.content,
+              sections: artifact.content.sections.map((section) => ({
+                ...section,
+                sourceIds: section.sourceIds.map(mappedSourceId),
+              })),
+              cards: artifact.content.cards.map((card) => ({ ...card, sourceId: mappedSourceId(card.sourceId) })),
+              questions: artifact.content.questions.map((question) => ({
+                ...question,
+                sourceId: mappedSourceId(question.sourceId),
+              })),
+              nodes: artifact.content.nodes.map((node) => ({
+                ...node,
+                id: nodeIds.get(node.id) ?? node.id,
+                parentId: nodeIds.get(node.parentId) ?? node.parentId,
+                sourceId: mappedSourceId(node.sourceId),
+              })),
+              slides: artifact.content.slides.map((slide) => ({
+                ...slide,
+                sourceIds: slide.sourceIds.map(mappedSourceId),
+              })),
+              rows: artifact.content.rows.map((row) => ({ ...row, sourceIds: row.sourceIds.map(mappedSourceId) })),
+              metrics: artifact.content.metrics.map((metric) => ({
+                ...metric,
+                sourceId: mappedSourceId(metric.sourceId),
+              })),
+              transcript: artifact.content.transcript.map((line) => ({
+                ...line,
+                sourceIds: line.sourceIds.map(mappedSourceId),
+              })),
+            }
+          : undefined,
+      })),
     notes: [],
     createdAt: timestamp,
     updatedAt: timestamp,

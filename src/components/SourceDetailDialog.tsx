@@ -33,25 +33,46 @@ function highlightedParagraph(paragraph: SourceParagraph, location: CitationLoca
 
   const localStart = highlightStart - paragraph.start
   const localEnd = highlightEnd - paragraph.start
-  return <>{paragraph.text.slice(0, localStart)}<mark className="citation-highlight">{paragraph.text.slice(localStart, localEnd)}</mark>{paragraph.text.slice(localEnd)}</>
+  return (
+    <>
+      {paragraph.text.slice(0, localStart)}
+      <mark className="citation-highlight">{paragraph.text.slice(localStart, localEnd)}</mark>
+      {paragraph.text.slice(localEnd)}
+    </>
+  )
 }
 
 export function SourceDetailDialog({ source, citation, onClose, onToggle }: SourceDetailDialogProps) {
   const contentRef = useRef<HTMLElement>(null)
-  const location = useMemo(() => source && citation ? locateCitation(source.content, citation.excerpt) : null, [citation, source])
-  const paragraphs = useMemo(() => source ? sourceParagraphs(source.content) : [], [source])
+  const location = useMemo(
+    () => (source && citation ? locateCitation(source.content, citation.excerpt) : null),
+    [citation, source],
+  )
+  const paragraphs = useMemo(() => (source ? sourceParagraphs(source.content) : []), [source])
 
   useEffect(() => {
     if (!location) return
-    contentRef.current?.querySelector<HTMLElement>('.citation-highlight')?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    contentRef.current?.querySelector<HTMLElement>('.citation-highlight')?.scrollIntoView({
+      block: 'center',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    })
   }, [location])
 
   if (!source) return null
 
   return (
-    <Modal open title={citation ? 'Citation evidence' : 'Source guide'} description={source.title} onClose={onClose} wide className="source-detail-modal">
+    <Modal
+      open
+      title={citation ? 'Citation evidence' : 'Source guide'}
+      description={source.title}
+      onClose={onClose}
+      wide
+      className="source-detail-modal"
+    >
       <div className="source-detail-hero">
-        <span className={`source-kind-icon source-${source.kind}`}><SourceIcon kind={source.kind} size={22} /></span>
+        <span className={`source-kind-icon source-${source.kind}`}>
+          <SourceIcon kind={source.kind} size={22} />
+        </span>
         <div>
           <h3>{source.title}</h3>
           <p>{source.origin}</p>
@@ -69,19 +90,33 @@ export function SourceDetailDialog({ source, citation, onClose, onToggle }: Sour
         <aside className="source-guide-sidebar">
           {citation && (
             <div className="guide-card citation-evidence-card">
-              <span><LocateFixed size={17} /> Citation {citation.label}</span>
+              <span>
+                <LocateFixed size={17} /> Citation {citation.label}
+              </span>
               <blockquote>{citation.excerpt}</blockquote>
-              <small>{location ? 'Highlighted in the source text' : 'Quoted passage could not be matched verbatim'}</small>
+              <small>
+                {location ? 'Highlighted in the source text' : 'Quoted passage could not be matched verbatim'}
+              </small>
             </div>
           )}
           <div className="guide-card summary-card">
-            <span><Sparkles size={17} /> Auto summary</span>
+            <span>
+              <Sparkles size={17} /> Auto summary
+            </span>
             <p>{source.summary}</p>
           </div>
           <div className="guide-card">
             <span>Key topics</span>
             <div className="topic-list">
-              {source.topics.length > 0 ? source.topics.map((topic) => <button className="chip" type="button" key={topic}>{topic}</button>) : <small>Topics appear as the source is analyzed.</small>}
+              {source.topics.length > 0 ? (
+                source.topics.map((topic) => (
+                  <button className="chip" type="button" key={topic}>
+                    {topic}
+                  </button>
+                ))
+              ) : (
+                <small>Topics appear as the source is analyzed.</small>
+              )}
             </div>
           </div>
           {source.origin.startsWith('http') && (
@@ -91,8 +126,20 @@ export function SourceDetailDialog({ source, citation, onClose, onToggle }: Sour
           )}
         </aside>
         <article ref={contentRef} className="source-content-view" aria-label="Source text">
-          <div className="source-content-heading"><Quote size={18} /><span>Source text</span>{citation && <small className={location ? 'located' : 'unmatched'}>{location ? `Citation ${citation.label} highlighted` : 'Citation shown at left'}</small>}</div>
-          {paragraphs.map((paragraph, index) => <p key={`${source.id}-${paragraph.start}-${index}`}>{location ? highlightedParagraph(paragraph, location) : paragraph.text}</p>)}
+          <div className="source-content-heading">
+            <Quote size={18} />
+            <span>Source text</span>
+            {citation && (
+              <small className={location ? 'located' : 'unmatched'}>
+                {location ? `Citation ${citation.label} highlighted` : 'Citation shown at left'}
+              </small>
+            )}
+          </div>
+          {paragraphs.map((paragraph, index) => (
+            <p key={`${source.id}-${paragraph.start}-${index}`}>
+              {location ? highlightedParagraph(paragraph, location) : paragraph.text}
+            </p>
+          ))}
         </article>
       </div>
     </Modal>

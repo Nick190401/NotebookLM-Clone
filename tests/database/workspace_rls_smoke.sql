@@ -6,6 +6,9 @@ insert into auth.users (id) values
   ('11111111-1111-4111-8111-111111111111'),
   ('22222222-2222-4222-8222-222222222222');
 
+insert into public.ai_quota_policies (bucket, window_seconds, max_requests, description)
+values ('smoke', 3600, 2, 'Disposable quota bucket for the RLS smoke test');
+
 set local "request.jwt.claim.sub" = '11111111-1111-4111-8111-111111111111';
 set local role authenticated;
 
@@ -65,6 +68,66 @@ begin
     or jsonb_array_length(workspace #> '{notebooks,0,notes}') <> 1 then
     raise exception 'Snapshot round-trip failed';
   end if;
+end;
+$$;
+
+do $$
+declare
+  first_call jsonb;
+  second_call jsonb;
+  refused jsonb;
+begin
+  first_call := public.consume_ai_quota('smoke');
+  second_call := public.consume_ai_quota('smoke');
+  if (first_call ->> 'allowed')::boolean is not true
+    or (first_call ->> 'remaining')::integer <> 1
+    or (second_call ->> 'allowed')::boolean is not true
+    or (second_call ->> 'remaining')::integer <> 0 then
+    raise exception 'AI quota refused a call inside the configured limit';
+  end if;
+
+  refused := public.consume_ai_quota('smoke');
+  if (refused ->> 'allowed')::boolean is not false
+    or (refused ->> 'retryAfterSeconds')::integer < 1 then
+    raise exception 'AI quota did not refuse the call above the configured limit';
+  end if;
+
+  -- Repeated refusals must stay refusals; the counter assertion runs as the
+  -- table owner further down, because authenticated cannot read the counters.
+  perform public.consume_ai_quota('smoke');
+
+  begin
+    perform public.consume_ai_quota('not-a-bucket');
+    raise exception 'An unknown quota bucket was accepted';
+  exception when invalid_parameter_value then
+    null;
+  end;
+end;
+$$;
+
+do $$
+declare
+  visible_counters integer;
+begin
+  -- The counter tables must stay unreachable outside the definer function.
+  begin
+    select count(*) into visible_counters from public.ai_quota_counters;
+    raise exception 'Authenticated callers can read AI quota counters directly';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    update public.ai_quota_counters set request_count = 0;
+    raise exception 'Authenticated callers can reset their own AI quota';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    select count(*) into visible_counters from public.ai_quota_policies;
+    raise exception 'Authenticated callers can read AI quota policies directly';
+  exception when insufficient_privilege then
+    null;
+  end;
 end;
 $$;
 
@@ -147,12 +210,30 @@ $$;
 reset role;
 
 do $$
+declare
+  consumed integer;
+begin
+  select request_count into consumed
+  from public.ai_quota_counters
+  where user_id = '11111111-1111-4111-8111-111111111111' and bucket = 'smoke';
+  if consumed is distinct from 2 then
+    raise exception 'Refused AI quota calls inflated the counter to %', consumed;
+  end if;
+end;
+$$;
+
+do $$
 begin
   if has_table_privilege('anon', 'public.notebooks', 'select')
     or has_function_privilege('anon', 'public.load_workspace()', 'execute')
     or has_function_privilege('anon', 'public.load_ai_sources(text,text[])', 'execute')
     or has_function_privilege('anon', 'public.load_shared_notebook(uuid)', 'execute')
     or has_function_privilege('anon', 'private.load_shared_notebook(uuid)', 'execute')
+    or has_function_privilege('anon', 'public.consume_ai_quota(text)', 'execute')
+    or has_table_privilege('anon', 'public.ai_quota_counters', 'select')
+    or has_table_privilege('authenticated', 'public.ai_quota_counters', 'select')
+    or has_table_privilege('authenticated', 'public.ai_quota_counters', 'update')
+    or has_table_privilege('authenticated', 'public.ai_quota_policies', 'select')
     or has_schema_privilege('anon', 'private', 'usage') then
     raise exception 'The anon Postgres role received workspace access';
   end if;
@@ -160,7 +241,8 @@ begin
     or not has_function_privilege('authenticated', 'public.load_ai_sources(text,text[])', 'execute')
     or not has_function_privilege('authenticated', 'public.set_notebook_sharing(text,text)', 'execute')
     or not has_function_privilege('authenticated', 'public.load_shared_notebook(uuid)', 'execute')
-    or not has_function_privilege('authenticated', 'public.load_shared_ai_sources(uuid,text,text[])', 'execute') then
+    or not has_function_privilege('authenticated', 'public.load_shared_ai_sources(uuid,text,text[])', 'execute')
+    or not has_function_privilege('authenticated', 'public.consume_ai_quota(text)', 'execute') then
     raise exception 'Authenticated RPC grants are missing';
   end if;
 end;

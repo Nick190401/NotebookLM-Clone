@@ -8,16 +8,18 @@ function renderHome() {
   const older = { ...createBlankNotebook('Zebra research'), id: 'older', updatedAt: 1 }
   const newer = { ...createBlankNotebook('Alpha project'), id: 'newer', updatedAt: 2 }
   const onDuplicate = vi.fn()
-  render(<HomeScreen
-    notebooks={[older, newer]}
-    onCreate={vi.fn()}
-    onOpen={vi.fn()}
-    onDelete={vi.fn()}
-    onDuplicate={onDuplicate}
-    onOpenSettings={vi.fn()}
-    account={{ id: 'guest', email: null, isAnonymous: true }}
-    onOpenAccount={vi.fn()}
-  />)
+  render(
+    <HomeScreen
+      notebooks={[older, newer]}
+      onCreate={vi.fn()}
+      onOpen={vi.fn()}
+      onDelete={vi.fn()}
+      onDuplicate={onDuplicate}
+      onOpenSettings={vi.fn()}
+      account={{ id: 'guest', email: null, isAnonymous: true }}
+      onOpenAccount={vi.fn()}
+    />,
+  )
   return { onDuplicate }
 }
 

@@ -8,6 +8,9 @@ dist
 *.log
 coverage
 .postgres-test
+.playwright-mcp
+test-results
+playwright-report
 supabase/.temp
 supabase/functions/.env
 supabase/functions/**/node_modules

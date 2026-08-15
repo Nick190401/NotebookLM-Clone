@@ -48,17 +48,24 @@ export function ShareDialog({ open, notebookId, notebookTitle, onClose }: ShareD
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    void repository.flushNotebook(notebookId).then(() => repository.getNotebookSharing(notebookId)).then((next) => {
-      if (cancelled) return
-      setDetails(next)
-      setDraftAccess(next.access)
-    }).catch((caught) => {
-      if (cancelled) return
-      setError(caught instanceof Error ? caught.message : 'Sharing settings could not be loaded.')
-    }).finally(() => {
-      if (!cancelled) setLoading(false)
-    })
-    return () => { cancelled = true }
+    void repository
+      .flushNotebook(notebookId)
+      .then(() => repository.getNotebookSharing(notebookId))
+      .then((next) => {
+        if (cancelled) return
+        setDetails(next)
+        setDraftAccess(next.access)
+      })
+      .catch((caught) => {
+        if (cancelled) return
+        setError(caught instanceof Error ? caught.message : 'Sharing settings could not be loaded.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [notebookId, open])
 
   const publicLink = useMemo(() => {
@@ -93,9 +100,12 @@ export function ShareDialog({ open, notebookId, notebookTitle, onClose }: ShareD
   }
 
   const changed = details !== null && draftAccess !== details.access
-  const applyLabel = draftAccess !== 'private'
-    ? 'Apply access'
-    : details?.access === 'full' || details?.access === 'chat' ? 'Turn off sharing' : 'Restricted'
+  const applyLabel =
+    draftAccess !== 'private'
+      ? 'Apply access'
+      : details?.access === 'full' || details?.access === 'chat'
+        ? 'Turn off sharing'
+        : 'Restricted'
 
   return (
     <Modal
@@ -106,14 +116,18 @@ export function ShareDialog({ open, notebookId, notebookTitle, onClose }: ShareD
       className="share-dialog"
     >
       {loading ? (
-        <div className="share-loading" role="status"><LoaderCircle className="spin" size={22} /> Loading sharing settings…</div>
+        <div className="share-loading" role="status">
+          <LoaderCircle className="spin" size={22} /> Loading sharing settings…
+        </div>
       ) : (
         <>
           <div className="share-visibility-map" aria-hidden="true">
             <span className={draftAccess === 'full' ? 'active' : ''}>Sources</span>
             <span className={draftAccess === 'full' || draftAccess === 'chat' ? 'active chat' : ''}>Chat</span>
             <span className={draftAccess === 'full' ? 'active' : ''}>Studio</span>
-            <i className={draftAccess === 'private' ? 'private' : ''}>{draftAccess === 'private' ? <LockKeyhole size={15} /> : <Globe2 size={15} />}</i>
+            <i className={draftAccess === 'private' ? 'private' : ''}>
+              {draftAccess === 'private' ? <LockKeyhole size={15} /> : <Globe2 size={15} />}
+            </i>
           </div>
 
           <div className="share-options" role="radiogroup" aria-label="Public notebook access">
@@ -129,8 +143,13 @@ export function ShareDialog({ open, notebookId, notebookTitle, onClose }: ShareD
                   key={option.access}
                   onClick={() => setDraftAccess(option.access)}
                 >
-                  <span className="share-option-icon"><Icon size={18} /></span>
-                  <span><strong>{option.title}</strong><small>{option.description}</small></span>
+                  <span className="share-option-icon">
+                    <Icon size={18} />
+                  </span>
+                  <span>
+                    <strong>{option.title}</strong>
+                    <small>{option.description}</small>
+                  </span>
                   <span className="radio-dot" />
                 </button>
               )
@@ -139,24 +158,61 @@ export function ShareDialog({ open, notebookId, notebookTitle, onClose }: ShareD
 
           {publicLink && details?.access === draftAccess && (
             <div className="share-link-section">
-              <div><Globe2 size={16} /><span><strong>Anyone with this link</strong><small>No sign-up required. The owner’s chat history stays private.</small></span></div>
+              <div>
+                <Globe2 size={16} />
+                <span>
+                  <strong>Anyone with this link</strong>
+                  <small>No sign-up required. The owner’s chat history stays private.</small>
+                </span>
+              </div>
               <div className="share-link-field">
-                <input aria-label="Public notebook link" value={publicLink} readOnly onFocus={(event) => event.currentTarget.select()} />
-                <button className="secondary-button" type="button" onClick={() => { void copyLink() }}>
-                  {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'Copied' : 'Copy link'}
+                <input
+                  aria-label="Public notebook link"
+                  value={publicLink}
+                  readOnly
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    void copyLink()
+                  }}
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? 'Copied' : 'Copy link'}
                 </button>
               </div>
             </div>
           )}
 
           {draftAccess === 'private' && details !== null && details.access !== 'private' && (
-            <div className="share-revoke-warning"><ShieldCheck size={17} /><span><strong>The current link will stop working.</strong><small>Turning sharing on again creates a new link.</small></span></div>
+            <div className="share-revoke-warning">
+              <ShieldCheck size={17} />
+              <span>
+                <strong>The current link will stop working.</strong>
+                <small>Turning sharing on again creates a new link.</small>
+              </span>
+            </div>
           )}
 
-          {error && <div className="form-error" role="alert">{error}</div>}
+          {error && (
+            <div className="form-error" role="alert">
+              {error}
+            </div>
+          )}
           <div className="modal-actions share-actions">
-            <button className="secondary-button" type="button" onClick={onClose}>Close</button>
-            <button className="primary-button" type="button" disabled={!details || !changed || saving} onClick={() => { void applySharing() }}>
+            <button className="secondary-button" type="button" onClick={onClose}>
+              Close
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={!details || !changed || saving}
+              onClick={() => {
+                void applySharing()
+              }}
+            >
               {saving && <LoaderCircle className="spin" size={16} />}
               {applyLabel}
             </button>

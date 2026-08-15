@@ -18,8 +18,25 @@ export function NoteEditorDialog({ open, note, readOnly = false, onClose, onSave
   const locked = readOnly || Boolean(note?.locked)
 
   return (
-    <Modal open={open} onClose={onClose} title={note ? 'Note' : 'Add note'} description={readOnly ? 'This shared note is read only.' : note?.locked ? 'Saved chat responses preserve their original format.' : 'Capture an idea or connect insights from your sources.'} wide className="note-editor-modal">
-      {locked && <div className="locked-note-banner"><LockKeyhole size={16} /> {readOnly ? 'Shared note' : 'Saved response'} · read only</div>}
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={note ? 'Note' : 'Add note'}
+      description={
+        readOnly
+          ? 'This shared note is read only.'
+          : note?.locked
+            ? 'Saved chat responses preserve their original format.'
+            : 'Capture an idea or connect insights from your sources.'
+      }
+      wide
+      className="note-editor-modal"
+    >
+      {locked && (
+        <div className="locked-note-banner">
+          <LockKeyhole size={16} /> {readOnly ? 'Shared note' : 'Saved response'} · read only
+        </div>
+      )}
       <div className="note-editor-fields">
         <input
           className="note-title-input"
@@ -39,10 +56,35 @@ export function NoteEditorDialog({ open, note, readOnly = false, onClose, onSave
         />
       </div>
       <div className="modal-actions note-actions">
-        {note && !locked && <button className="secondary-button" type="button" onClick={() => { onConvert(note); onClose() }}><FileInput size={16} /> Convert to source</button>}
+        {note && !locked && (
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              onConvert(note)
+              onClose()
+            }}
+          >
+            <FileInput size={16} /> Convert to source
+          </button>
+        )}
         <span />
-        <button className="secondary-button" type="button" onClick={onClose}>{locked ? 'Close' : 'Cancel'}</button>
-        {!locked && <button className="primary-button" type="button" disabled={!body.trim()} onClick={() => { onSave(title.trim() || 'Untitled note', body.trim()); onClose() }}><Save size={16} /> Save note</button>}
+        <button className="secondary-button" type="button" onClick={onClose}>
+          {locked ? 'Close' : 'Cancel'}
+        </button>
+        {!locked && (
+          <button
+            className="primary-button"
+            type="button"
+            disabled={!body.trim()}
+            onClick={() => {
+              onSave(title.trim() || 'Untitled note', body.trim())
+              onClose()
+            }}
+          >
+            <Save size={16} /> Save note
+          </button>
+        )}
       </div>
     </Modal>
   )

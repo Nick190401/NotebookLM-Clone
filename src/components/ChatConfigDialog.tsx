@@ -13,15 +13,22 @@ export function ChatConfigDialog({ open, config, onClose, onSave }: ChatConfigDi
   const [draft, setDraft] = useState(config)
 
   return (
-    <Modal open={open} onClose={onClose} title="Configure chat" description="Shape how answers are structured without changing their source grounding.">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Configure chat"
+      description="Shape how answers are structured without changing their source grounding."
+    >
       <div className="config-section">
         <h3>Conversation style</h3>
         <div className="option-cards">
-          {([
-            ['Default', 'Balanced research and brainstorming'],
-            ['Learning Guide', 'Step-by-step explanations that teach'],
-            ['Custom', 'Follow your own response instructions'],
-          ] as const).map(([value, description]) => (
+          {(
+            [
+              ['Default', 'Balanced research and brainstorming'],
+              ['Learning Guide', 'Step-by-step explanations that teach'],
+              ['Custom', 'Follow your own response instructions'],
+            ] as const
+          ).map(([value, description]) => (
             <button
               className={draft.style === value ? 'selected' : ''}
               type="button"
@@ -29,7 +36,10 @@ export function ChatConfigDialog({ open, config, onClose, onSave }: ChatConfigDi
               onClick={() => setDraft({ ...draft, style: value })}
             >
               <span className="radio-dot" />
-              <span><strong>{value}</strong><small>{description}</small></span>
+              <span>
+                <strong>{value}</strong>
+                <small>{description}</small>
+              </span>
             </button>
           ))}
         </div>
@@ -64,8 +74,19 @@ export function ChatConfigDialog({ open, config, onClose, onSave }: ChatConfigDi
       </div>
 
       <div className="modal-actions">
-        <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-        <button className="primary-button" type="button" onClick={() => { onSave(draft); onClose() }}>Save</button>
+        <button className="secondary-button" type="button" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => {
+            onSave(draft)
+            onClose()
+          }}
+        >
+          Save
+        </button>
       </div>
     </Modal>
   )
