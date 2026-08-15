@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ArrowLeft,
   ChevronDown,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { artifactTitle } from '../data/artifacts'
 import { askAi, createArtifact } from '../lib/api'
+import { useDismissOnOutside } from '../lib/dismiss'
 import { createId } from '../lib/id'
 import { makeSource, organizeSources, SOURCE_LABEL_THRESHOLD } from '../lib/source'
 import type { AccountIdentity } from '../lib/repository'
@@ -76,21 +77,7 @@ export function Workspace({ notebook, settings, startWithAddSource, aiStatus, sh
   const [copying, setCopying] = useState(false)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!emojiMenuOpen) return
-    const onPointerDown = (event: MouseEvent) => {
-      if (!emojiPickerRef.current?.contains(event.target as Node)) setEmojiMenuOpen(false)
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setEmojiMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [emojiMenuOpen])
+  useDismissOnOutside(emojiMenuOpen, emojiPickerRef, () => setEmojiMenuOpen(false))
 
   const update = (recipe: (current: Notebook) => Notebook) => {
     return onUpdate((current) => readOnly ? recipe(current) : { ...recipe(current), updatedAt: Date.now() })

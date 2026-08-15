@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ArrowRight,
   BrainCircuit,
@@ -17,6 +17,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
+import { useDismissOnOutside } from '../lib/dismiss'
 import { sourceKindLabel } from '../lib/source'
 import type { Source } from '../types'
 import { SourceIcon } from './ProductIcon'
@@ -92,21 +93,7 @@ export function SourcePanel({
   const unlabeledCount = sources.filter((source) => !source.label).length
   const activeResearchMode = researchModes.find((mode) => mode.value === researchMode) ?? researchModes[0]
 
-  useEffect(() => {
-    if (!researchMenuOpen) return
-    const onPointerDown = (event: MouseEvent) => {
-      if (!researchMenuRef.current?.contains(event.target as Node)) setResearchMenuOpen(false)
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setResearchMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [researchMenuOpen])
+  useDismissOnOutside(researchMenuOpen, researchMenuRef, () => setResearchMenuOpen(false))
 
   const submitResearch = () => {
     if (!query.trim()) return

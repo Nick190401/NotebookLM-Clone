@@ -913,7 +913,6 @@ select {
 .deep-research-banner small { color: var(--text-muted); font-size: 11px; line-height: 1.3; }
 
 .source-research-box {
-  overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 13px;
 }
@@ -937,6 +936,7 @@ select {
   gap: 5px;
   background: var(--surface-soft);
   border-top: 1px solid var(--line);
+  border-radius: 0 0 12px 12px;
 }
 
 .mini-select {
