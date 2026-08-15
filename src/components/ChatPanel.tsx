@@ -40,21 +40,31 @@ const suggestions = [
 
 /**
  * The preview is anchored to its chip, so a citation near either edge of the
- * column would otherwise be clipped by the neighbouring panels. Measuring once
- * per hover slides it back inside the scrolling column and keeps the arrow on
- * the chip.
+ * column would otherwise be clipped by the neighbouring panels. The offset is
+ * derived from the chip and the preview's untransformed width rather than its
+ * current rectangle, because that rectangle is mid-transition whenever the
+ * pointer arrives from another citation.
  */
 function clampPreview(event: { currentTarget: HTMLElement }) {
   const preview = event.currentTarget.querySelector<HTMLElement>('.citation-preview')
   const column = event.currentTarget.closest<HTMLElement>('.message-stream')
   if (!preview || !column) return
-  preview.style.setProperty('--citation-shift', '0px')
   const bounds = column.getBoundingClientRect()
-  const rect = preview.getBoundingClientRect()
-  const clippedLeft = bounds.left + 12 - rect.left
-  const clippedRight = rect.right - (bounds.right - 12)
-  const shift = clippedLeft > 0 ? clippedLeft : clippedRight > 0 ? -clippedRight : 0
-  preview.style.setProperty('--citation-shift', `${shift}px`)
+  const chip = event.currentTarget.getBoundingClientRect()
+  const centered = chip.left + chip.width / 2 - preview.offsetWidth / 2
+  const earliest = bounds.left + 12
+  const latest = bounds.right - 12 - preview.offsetWidth
+  const placed = Math.max(earliest, Math.min(centered, latest))
+  preview.style.setProperty('--citation-shift', `${placed - centered}px`)
+}
+
+/** The model writes Markdown emphasis; bold is the only form it uses often. */
+function boldSegments(text: string) {
+  return text
+    .split(/(\*\*[^*\n]+\*\*)/g)
+    .map((part, index) =>
+      part.startsWith('**') && part.endsWith('**') ? <strong key={index}>{part.slice(2, -2)}</strong> : part,
+    )
 }
 
 function renderMessage(
@@ -100,7 +110,7 @@ function renderMessage(
       }
     } else {
       piece.split('\n').forEach((line, lineIndex, lines) => {
-        output.push(<span key={`text-${index}-${lineIndex}`}>{line}</span>)
+        output.push(<span key={`text-${index}-${lineIndex}`}>{boldSegments(line)}</span>)
         if (lineIndex < lines.length - 1) output.push(<br key={`br-${index}-${lineIndex}`} />)
       })
     }
@@ -276,7 +286,7 @@ export function ChatPanel({
                 </span>
                 <div className="message-content-wrap">
                   <div className="message-content streaming">
-                    {streamingAnswer}
+                    {boldSegments(streamingAnswer)}
                     <span className="stream-caret" aria-hidden="true" />
                   </div>
                 </div>

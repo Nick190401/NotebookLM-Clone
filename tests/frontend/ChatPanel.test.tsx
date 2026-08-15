@@ -61,6 +61,14 @@ describe('grounded answer citations', () => {
     expect(screen.queryByRole('button', { name: /Citation/ })).not.toBeInTheDocument()
   })
 
+  it('renders the Markdown emphasis the model writes instead of its asterisks', () => {
+    renderChat(answer('**Scaling approach** — the team keeps a **modular monolith** [1].', [citation]))
+
+    expect(screen.getByText('Scaling approach').tagName).toBe('STRONG')
+    expect(screen.getByText('modular monolith').tagName).toBe('STRONG')
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument()
+  })
+
   it('keeps citations readable but inert when the reader cannot open sources', () => {
     renderChat(answer('Reliability rose by 24 percent [1].', [citation]), { canOpenSources: false })
 
