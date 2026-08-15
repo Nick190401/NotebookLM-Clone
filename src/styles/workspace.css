@@ -198,8 +198,6 @@
 .panel-scroll {
   min-height: 0;
   overflow-y: auto;
-  scrollbar-color: var(--line-strong) transparent;
-  scrollbar-width: thin;
 }
 .mobile-workspace-tabs {
   display: none;

@@ -689,8 +689,6 @@
   padding: 30px clamp(20px, 4vw, 54px) 22px;
   overflow-x: clip;
   overflow-y: auto;
-  scrollbar-color: var(--line-strong) transparent;
-  scrollbar-width: thin;
 }
 
 .notebook-summary {
