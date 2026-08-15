@@ -225,6 +225,23 @@ function sanitizeArtifact(content: ArtifactContent, validSourceIds: Set<string>)
   }
 }
 
+export function shuffleQuizOptions(content: ArtifactContent): ArtifactContent {
+  return {
+    ...content,
+    questions: content.questions.map((question) => {
+      const answer = question.options[question.correctIndex]
+      if (answer === undefined) return question
+      const options = [...question.options]
+      for (let index = options.length - 1; index > 0; index -= 1) {
+        const swap = Math.floor(Math.random() * (index + 1))
+        ;[options[index], options[swap]] = [options[swap], options[index]]
+      }
+      const correctIndex = options.indexOf(answer)
+      return correctIndex < 0 ? question : { ...question, options, correctIndex }
+    }),
+  }
+}
+
 function artifactValidator(type: ArtifactType, validSourceIds: Set<string>) {
   return artifactContentSchema.superRefine((content, context) => {
     const clean = sanitizeArtifact(content, validSourceIds)
@@ -253,7 +270,8 @@ export async function generateArtifact(type: ArtifactType, sources: Source[], co
       { role: 'user', content: formatContext(chunks) },
     ],
   })
-  return { content: sanitizeArtifact(result.data, validSourceIds), model: result.model }
+  const content = sanitizeArtifact(result.data, validSourceIds)
+  return { content: type === 'quiz' ? shuffleQuizOptions(content) : content, model: result.model }
 }
 
 export async function discoverWebSources(query: string, language: 'English' | 'Deutsch') {
