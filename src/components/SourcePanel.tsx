@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
+  BrainCircuit,
   Check,
   ChevronDown,
   ChevronRight,
@@ -14,6 +15,7 @@ import {
   Tag,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react'
 import { sourceKindLabel } from '../lib/source'
 import type { Source } from '../types'
@@ -40,6 +42,11 @@ type LabelAction =
   | { mode: 'source'; source: Source }
   | { mode: 'rename'; label: string }
 
+const researchModes = [
+  { value: 'fast', label: 'Fast research', hint: 'One focused web scan', icon: Zap },
+  { value: 'deep', label: 'Deep research', hint: 'Multi-step investigation + report', icon: BrainCircuit },
+] as const
+
 export function SourcePanel({
   sources,
   readOnly = false,
@@ -57,11 +64,13 @@ export function SourcePanel({
 }: SourcePanelProps) {
   const [query, setQuery] = useState('')
   const [researchMode, setResearchMode] = useState<'fast' | 'deep'>('fast')
+  const [researchMenuOpen, setResearchMenuOpen] = useState(false)
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const [labelMenuFor, setLabelMenuFor] = useState<string | null>(null)
   const [labelAction, setLabelAction] = useState<LabelAction | null>(null)
   const [collapsedLabels, setCollapsedLabels] = useState<Set<string>>(() => new Set())
   const [sourceFilter, setSourceFilter] = useState('')
+  const researchMenuRef = useRef<HTMLDivElement>(null)
   const selectedCount = sources.filter((source) => source.selected).length
   const allSelected = sources.length > 0 && selectedCount === sources.length
   const normalizedFilter = sourceFilter.trim().toLowerCase()
@@ -81,6 +90,23 @@ export function SourcePanel({
       return a.label.localeCompare(b.label)
     })
   const unlabeledCount = sources.filter((source) => !source.label).length
+  const activeResearchMode = researchModes.find((mode) => mode.value === researchMode) ?? researchModes[0]
+
+  useEffect(() => {
+    if (!researchMenuOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!researchMenuRef.current?.contains(event.target as Node)) setResearchMenuOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setResearchMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [researchMenuOpen])
 
   const submitResearch = () => {
     if (!query.trim()) return
@@ -166,7 +192,27 @@ export function SourcePanel({
           </div>
           <div className="source-research-footer">
             <span className="mini-select static">Web</span>
-            <button className="mini-select" type="button" onClick={() => setResearchMode((current) => current === 'fast' ? 'deep' : 'fast')} aria-label={`Research mode: ${researchMode === 'fast' ? 'Fast Research' : 'Deep Research'}`}><Sparkles size={14} /> {researchMode === 'fast' ? 'Fast research' : 'Deep research'} <ChevronDown size={14} /></button>
+            <div className="research-mode-picker" ref={researchMenuRef}>
+              <button className="mini-select" type="button" aria-haspopup="menu" aria-expanded={researchMenuOpen} aria-label={`Research mode: ${activeResearchMode.label}`} onClick={() => setResearchMenuOpen(!researchMenuOpen)}>
+                <Sparkles size={14} /> {activeResearchMode.label} <ChevronDown size={14} />
+              </button>
+              {researchMenuOpen && <div className="context-menu research-mode-menu" role="menu" aria-label="Research mode">
+                {researchModes.map((mode) => (
+                  <button
+                    type="button"
+                    key={mode.value}
+                    role="menuitemradio"
+                    aria-checked={researchMode === mode.value}
+                    className={researchMode === mode.value ? 'active' : ''}
+                    onClick={() => { setResearchMode(mode.value); setResearchMenuOpen(false) }}
+                  >
+                    <mode.icon size={16} />
+                    <span><strong>{mode.label}</strong><small>{mode.hint}</small></span>
+                    {researchMode === mode.value && <Check className="research-mode-check" size={15} />}
+                  </button>
+                ))}
+              </div>}
+            </div>
             <button className="round-submit" type="button" onClick={submitResearch} disabled={!query.trim()} aria-label="Research topic">
               <ArrowRight size={19} />
             </button>

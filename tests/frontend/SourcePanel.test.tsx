@@ -50,6 +50,34 @@ describe('SourcePanel', () => {
     expect(callbacks.onOrganize).toHaveBeenCalledOnce()
   })
 
+  it('picks the research mode from a dropdown and researches with it', async () => {
+    const user = userEvent.setup()
+    const callbacks = props()
+    render(<SourcePanel sources={[]} {...callbacks} />)
+
+    await user.click(screen.getByRole('button', { name: 'Research mode: Fast research' }))
+    const deep = screen.getByRole('menuitemradio', { name: /Deep research/ })
+    expect(screen.getByRole('menuitemradio', { name: /Fast research/ })).toHaveAttribute('aria-checked', 'true')
+
+    await user.click(deep)
+    expect(screen.queryByRole('menu', { name: 'Research mode' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Search the web for sources'), 'transit reliability')
+    await user.click(screen.getByRole('button', { name: 'Research topic' }))
+    expect(callbacks.onResearch).toHaveBeenCalledWith('transit reliability', 'deep')
+  })
+
+  it('closes the research mode dropdown when clicking outside', async () => {
+    const user = userEvent.setup()
+    render(<SourcePanel sources={[]} {...props()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Research mode: Fast research' }))
+    expect(screen.getByRole('menu', { name: 'Research mode' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('heading', { name: 'Sources' }))
+    expect(screen.queryByRole('menu', { name: 'Research mode' })).not.toBeInTheDocument()
+  })
+
   it('renames and deletes groups and moves a source to a new label', async () => {
     const user = userEvent.setup()
     const callbacks = props()
