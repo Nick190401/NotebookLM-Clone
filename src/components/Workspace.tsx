@@ -16,6 +16,7 @@ import { createArtifact, streamAskAi } from '../lib/api'
 import { useDismissOnOutside } from '../lib/dismiss'
 import { createId } from '../lib/id'
 import { makeSource, organizeSources, SOURCE_LABEL_THRESHOLD } from '../lib/source'
+import { useToast } from '../lib/toast'
 import type { AccountIdentity } from '../lib/repository'
 import type {
   AiStatus,
@@ -99,7 +100,7 @@ export function Workspace({
   const [studioVisible, setStudioVisible] = useState(!chatOnly)
   const [emojiMenuOpen, setEmojiMenuOpen] = useState(false)
   const [titleEditing, setTitleEditing] = useState(false)
-  const [toast, setToast] = useState('')
+  const { toast, showToast } = useToast()
   const [sourceResearchQuery, setSourceResearchQuery] = useState('')
   const [sourceResearchMode, setSourceResearchMode] = useState<ResearchMode>('fast')
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
@@ -114,11 +115,6 @@ export function Workspace({
   /** Read-only visitors mutate their local copy only, so the sort timestamp stays untouched. */
   const update = (recipe: (current: Notebook) => Notebook) => {
     return onUpdate((current) => (readOnly ? recipe(current) : { ...recipe(current), updatedAt: Date.now() }))
-  }
-
-  const showToast = (message: string) => {
-    setToast(message)
-    window.setTimeout(() => setToast(''), 2200)
   }
 
   const addSources = (sources: Source[]) => {
