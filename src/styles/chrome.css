@@ -218,21 +218,51 @@ select {
   transform: translateY(-1px);
 }
 
-.delete-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 18px;
+/* The dark palette lightens --danger to stay readable as text, which leaves white on it at 2.3:1.
+   Dark ink on the same fill reaches 7.7:1, so hover brightens here instead of darkening. */
+:root[data-theme='dark'] .danger-button {
+  color: var(--bg);
 }
 
-.delete-summary span {
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-soft);
+:root[data-theme='dark'] .danger-button:hover {
+  background: color-mix(in srgb, var(--danger) 88%, #fff);
+}
+
+/* A manifest of what the notebook holds, so the cost of confirming is visible at a glance. */
+.delete-contents {
+  margin: 18px 24px 0;
+  padding: 0;
+  list-style: none;
   background: var(--surface-soft);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 12px;
+}
+
+.delete-contents li {
+  display: grid;
+  padding: 10px 14px;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.delete-contents li + li {
+  border-top: 1px solid var(--line);
+}
+
+.delete-contents strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.delete-contents-empty {
+  margin: 18px 24px 0;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .compact {

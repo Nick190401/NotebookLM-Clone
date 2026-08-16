@@ -48,6 +48,14 @@ export function HomeScreen({
       .sort((a, b) => (sort === 'title' ? a.title.localeCompare(b.title) : b.updatedAt - a.updatedAt))
   }, [notebooks, query, sort])
 
+  // Only what the notebook actually holds; a column of zeroes reads as a heavier decision than an empty notebook is.
+  const deletedContents = [
+    { label: 'Sources', count: pendingDelete?.sources.length ?? 0 },
+    { label: 'Chat messages', count: pendingDelete?.messages.length ?? 0 },
+    { label: 'Studio outputs', count: pendingDelete?.artifacts.length ?? 0 },
+    { label: 'Notes', count: pendingDelete?.notes.length ?? 0 },
+  ].filter((entry) => entry.count > 0)
+
   return (
     <main className="home-screen">
       <header className="home-topbar">
@@ -204,20 +212,20 @@ export function HomeScreen({
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
         title={`Delete “${pendingDelete?.title ?? ''}”?`}
-        description="Deleting a notebook also removes its sources, chat history, Studio outputs, and notes. This cannot be undone."
+        description="Deleting a notebook is permanent and cannot be undone."
       >
-        <div className="delete-summary">
-          <span>
-            {pendingDelete?.sources.length ?? 0} source{(pendingDelete?.sources.length ?? 0) === 1 ? '' : 's'}
-          </span>
-          <span>
-            {pendingDelete?.artifacts.length ?? 0} Studio output
-            {(pendingDelete?.artifacts.length ?? 0) === 1 ? '' : 's'}
-          </span>
-          <span>
-            {pendingDelete?.notes.length ?? 0} note{(pendingDelete?.notes.length ?? 0) === 1 ? '' : 's'}
-          </span>
-        </div>
+        {deletedContents.length > 0 ? (
+          <ul className="delete-contents">
+            {deletedContents.map(({ label, count }) => (
+              <li key={label}>
+                <span>{label}</span>
+                <strong>{count}</strong>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="delete-contents-empty">This notebook is empty, so nothing else is lost with it.</p>
+        )}
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={() => setPendingDelete(null)}>
             Cancel
