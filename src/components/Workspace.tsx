@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ChevronDown,
@@ -12,7 +12,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { artifactTitle } from '../data/artifacts'
-import { createArtifact, streamAskAi } from '../lib/api'
+import { createArtifact } from '../lib/api'
+import { useChatStream } from '../lib/chat-stream'
 import { useDismissOnOutside } from '../lib/dismiss'
 import { createId } from '../lib/id'
 import { makeSource, organizeSources, SOURCE_LABEL_THRESHOLD } from '../lib/source'
@@ -24,7 +25,6 @@ import type {
   Artifact,
   ArtifactConfig,
   ArtifactType,
-  ChatMessage,
   Citation,
   Note,
   Notebook,
@@ -92,9 +92,6 @@ export function Workspace({
   const [promptArtifact, setPromptArtifact] = useState<Artifact | null>(null)
   const [noteEditorOpen, setNoteEditorOpen] = useState(false)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
-  const [chatBusy, setChatBusy] = useState(false)
-  const [streamingAnswer, setStreamingAnswer] = useState<string | null>(null)
-  const streamRef = useRef<AbortController | null>(null)
   const [sourcesVisible, setSourcesVisible] = useState(!chatOnly)
   const [chatVisible, setChatVisible] = useState(true)
   const [studioVisible, setStudioVisible] = useState(!chatOnly)
@@ -109,13 +106,19 @@ export function Workspace({
 
   useDismissOnOutside(emojiMenuOpen, emojiPickerRef, () => setEmojiMenuOpen(false))
 
-  // Leaving the notebook must not keep a half-written answer streaming.
-  useEffect(() => () => streamRef.current?.abort(), [])
-
   /** Read-only visitors mutate their local copy only, so the sort timestamp stays untouched. */
   const update = (recipe: (current: Notebook) => Notebook) => {
     return onUpdate((current) => (readOnly ? recipe(current) : { ...recipe(current), updatedAt: Date.now() }))
   }
+
+  const { chatBusy, streamingAnswer, sendMessage } = useChatStream({
+    notebook,
+    language: settings.outputLanguage,
+    shareToken,
+    onFlush,
+    update,
+    showToast,
+  })
 
   const addSources = (sources: Source[]) => {
     update((current) => {
@@ -180,91 +183,6 @@ export function Workspace({
       sources: current.sources.map((source) => (source.label === label ? { ...source, label: '' } : source)),
     }))
     showToast(`Label ${label} removed`)
-  }
-
-  const sendMessage = async (content: string) => {
-    const selectedSources = notebook.sources.filter((source) => source.selected)
-    if (!selectedSources.length) {
-      showToast('Select at least one source')
-      return
-    }
-    const userMessage: ChatMessage = {
-      id: createId('message'),
-      role: 'user',
-      content,
-      citations: [],
-      createdAt: Date.now(),
-    }
-    update((current) => ({ ...current, messages: [...current.messages, userMessage] }))
-    setChatBusy(true)
-    setStreamingAnswer('')
-
-    const controller = new AbortController()
-    streamRef.current?.abort()
-    streamRef.current = controller
-
-    let answer = ''
-    let citations: Citation[] = []
-    try {
-      // The Edge Function grounds on the stored snapshot, so pending writes must land first.
-      await onFlush()
-      // Only the finished message is persisted; the partial answer stays in component
-      // state, so a streamed reply costs one snapshot write instead of one per token.
-      for await (const event of streamAskAi(
-        {
-          notebookId: notebook.id,
-          sourceIds: selectedSources.map((source) => source.id),
-          message: content,
-          history: notebook.messages.map(({ role, content: messageContent }) => ({ role, content: messageContent })),
-          config: notebook.chatConfig,
-          language: settings.outputLanguage,
-          shareToken,
-        },
-        controller.signal,
-      )) {
-        if (event.type === 'delta') {
-          answer += event.text
-          setStreamingAnswer(answer)
-        }
-        if (event.type === 'done') citations = event.citations
-        if (event.type === 'context' && event.omittedSourceIds.length) {
-          showToast(
-            `${event.omittedSourceIds.length} source${event.omittedSourceIds.length === 1 ? '' : 's'} did not fit the answer context`,
-          )
-        }
-      }
-      if (!answer.trim()) throw new Error('The AI returned an empty answer.')
-      update((current) => ({
-        ...current,
-        messages: [
-          ...current.messages,
-          { id: createId('message'), role: 'assistant', content: answer.trim(), citations, createdAt: Date.now() },
-        ],
-      }))
-    } catch (caught) {
-      if (controller.signal.aborted) return
-      // A mid-answer failure keeps whatever streamed so far, marked as interrupted.
-      const message = caught instanceof Error ? caught.message : 'The AI request failed.'
-      const partial = answer.trim()
-      update((current) => ({
-        ...current,
-        messages: [
-          ...current.messages,
-          {
-            id: createId('message'),
-            role: 'assistant',
-            content: partial ? `${partial}\n\n(Interrupted: ${message})` : `AI request failed: ${message}`,
-            citations: partial ? citations : [],
-            createdAt: Date.now(),
-          },
-        ],
-      }))
-      showToast(message)
-    } finally {
-      if (streamRef.current === controller) streamRef.current = null
-      setStreamingAnswer(null)
-      setChatBusy(false)
-    }
   }
 
   const generateArtifact = async (type: ArtifactType, artifactConfig: ArtifactConfig) => {
