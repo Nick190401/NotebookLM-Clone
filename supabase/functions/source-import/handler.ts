@@ -221,7 +221,8 @@ function privateIpv4(address: string) {
     (a === 100 && b >= 64 && b <= 127) ||
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 0) ||
+    // IETF protocol assignments and TEST-NET-1; the rest of 192.0.0.0/16 is ordinary public space.
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
     (a === 192 && b === 168) ||
     (a === 198 && (b === 18 || b === 19)) ||
     (a === 198 && b === 51 && c === 100) ||
@@ -229,7 +230,7 @@ function privateIpv4(address: string) {
   )
 }
 
-function privateAddress(address: string) {
+export function privateAddress(address: string) {
   const normalized = address.toLowerCase().replace(/^\[|\]$/g, '')
   if (normalized.includes('.')) {
     const ipv4 = normalized.startsWith('::ffff:') ? normalized.slice(7) : normalized
