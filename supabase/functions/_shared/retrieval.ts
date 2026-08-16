@@ -146,8 +146,21 @@ function splitSource(source: Source): SourceChunk[] {
 }
 
 interface ScoredChunk extends SourceChunk {
-  terms: Set<string>
+  frequencies: Map<string, number>
+  bigrams: Set<string>
   length: number
+}
+
+/** Term counts and adjacent pairs come from one tokenizer pass, so scoring never rescans the text. */
+function toScoredChunk(chunk: SourceChunk): ScoredChunk {
+  const tokens = tokenize(chunk.text)
+  const frequencies = new Map<string, number>()
+  for (const token of tokens) frequencies.set(token, (frequencies.get(token) ?? 0) + 1)
+  const bigrams = new Set<string>()
+  for (let index = 0; index + 1 < tokens.length; index += 1) {
+    bigrams.add(`${tokens[index]} ${tokens[index + 1]}`)
+  }
+  return { ...chunk, frequencies, bigrams, length: tokens.length }
 }
 
 function bm25Scores(chunks: ScoredChunk[], terms: { term: string; weight: number }[]) {
@@ -155,32 +168,22 @@ function bm25Scores(chunks: ScoredChunk[], terms: { term: string; weight: number
   const averageLength = chunks.reduce((total, chunk) => total + chunk.length, 0) / Math.max(1, totalChunks)
 
   for (const { term, weight } of terms) {
-    const documentFrequency = chunks.reduce((count, chunk) => count + (chunk.terms.has(term) ? 1 : 0), 0)
+    const documentFrequency = chunks.reduce((count, chunk) => count + (chunk.frequencies.has(term) ? 1 : 0), 0)
     if (documentFrequency === 0) continue
     const idf = Math.log(1 + (totalChunks - documentFrequency + 0.5) / (documentFrequency + 0.5))
 
     for (const chunk of chunks) {
-      const frequency = countOccurrences(chunk.text, term)
+      const frequency = chunk.frequencies.get(term) ?? 0
       if (frequency > 0) {
         const denominator = frequency + BM25_K1 * (1 - BM25_B + (BM25_B * chunk.length) / Math.max(1, averageLength))
         chunk.score += weight * idf * ((frequency * (BM25_K1 + 1)) / denominator)
       }
+      // Titles match on substrings on purpose: a title says "Auctions" where the query says "auction".
       if (chunk.title.toLocaleLowerCase().includes(term)) {
         chunk.score += weight * idf * TITLE_MATCH_WEIGHT
       }
     }
   }
-}
-
-function countOccurrences(text: string, term: string) {
-  const haystack = text.toLocaleLowerCase()
-  let count = 0
-  let index = haystack.indexOf(term)
-  while (index >= 0 && count < 12) {
-    count += 1
-    index = haystack.indexOf(term, index + term.length)
-  }
-  return count
 }
 
 function applyPhraseBonus(chunks: ScoredChunk[], queryTerms: string[]) {
@@ -190,17 +193,16 @@ function applyPhraseBonus(chunks: ScoredChunk[], queryTerms: string[]) {
   }
   if (!phrases.length) return
   for (const chunk of chunks) {
-    const haystack = chunk.text.toLocaleLowerCase()
     for (const phrase of phrases) {
-      if (haystack.includes(phrase)) chunk.score += PHRASE_BONUS
+      if (chunk.bigrams.has(phrase)) chunk.score += PHRASE_BONUS
     }
   }
 }
 
-function jaccard(left: Set<string>, right: Set<string>) {
+function jaccard(left: Map<string, number>, right: Map<string, number>) {
   if (!left.size || !right.size) return 0
   let shared = 0
-  for (const term of left) {
+  for (const term of left.keys()) {
     if (right.has(term)) shared += 1
   }
   return shared / (left.size + right.size - shared)
@@ -211,11 +213,7 @@ export function retrieveContext(sources: Source[], query: string, options: Retri
   const maxChunks = options.maxChunks ?? 24
   const selected = sources.filter((source) => source.selected && source.content.trim())
 
-  const chunks: ScoredChunk[] = selected.flatMap(splitSource).map((chunk) => ({
-    ...chunk,
-    terms: new Set(uniqueTokens(chunk.text)),
-    length: tokenize(chunk.text).length,
-  }))
+  const chunks: ScoredChunk[] = selected.flatMap(splitSource).map(toScoredChunk)
   if (!chunks.length) return { chunks: [], usedSourceIds: [], omittedSourceIds: selected.map((source) => source.id) }
 
   const queryTerms = uniqueTokens(query)
@@ -251,7 +249,7 @@ export function retrieveContext(sources: Source[], query: string, options: Retri
   for (const chunk of ranked) {
     if (picked.includes(chunk) || chunk.score <= 0) continue
     if (usedChars + chunk.text.length > maxChars || picked.length >= maxChunks) break
-    if (picked.some((existing) => jaccard(existing.terms, chunk.terms) > REDUNDANCY_THRESHOLD)) continue
+    if (picked.some((existing) => jaccard(existing.frequencies, chunk.frequencies) > REDUNDANCY_THRESHOLD)) continue
     take(chunk)
   }
 

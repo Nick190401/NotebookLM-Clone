@@ -55,6 +55,31 @@ Deno.test('BM25 ranks the rare discriminating term above a repeated common one',
   assert(chunks[0].sourceId === 'rare', 'BM25 did not prefer the discriminating passage')
 })
 
+Deno.test('a query term does not score on a longer word that merely contains it', () => {
+  const { chunks } = retrieveContext(
+    [
+      source('substring', 'The automobile industry expanded steadily. '.repeat(20)),
+      source('exact', 'The auto arrived on time.'),
+    ],
+    'auto',
+  )
+  const substringScore = chunks
+    .filter((chunk) => chunk.sourceId === 'substring')
+    .reduce((highest, chunk) => Math.max(highest, chunk.score), 0)
+  assert(substringScore === 0, `"automobile" scored ${substringScore} for the query term "auto"`)
+  assert(chunks[0].sourceId === 'exact', 'the exact token match did not rank first')
+})
+
+Deno.test('the phrase bonus needs adjacent tokens, not a substring spanning a word boundary', () => {
+  const { chunks } = retrieveContext(
+    [source('spanning', 'Every start working day begins here.'), source('adjacent', 'The art work was catalogued.')],
+    'art work',
+  )
+  const spanning = chunks.find((chunk) => chunk.sourceId === 'spanning')
+  assert(spanning?.score === 0, `"start working" earned a phrase bonus for the query "art work"`)
+  assert(chunks[0].sourceId === 'adjacent', 'the genuinely adjacent phrase did not rank first')
+})
+
 Deno.test('expanded terms rank a synonym passage the literal query never matches', () => {
   const sources = [
     source('unrelated', 'Timetable coordination reduced missed connections. '.repeat(30)),
